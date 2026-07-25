@@ -1,0 +1,76 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<!-- viewport-fit=cover で、iPhoneの丸い角やノッチの内側まで背景を広げます -->
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>お薬管理</title>
+
+<!-- ホーム画面に追加したときにアプリのように開くための設定です -->
+<link rel="manifest" href="./manifest.webmanifest">
+<meta name="theme-color" content="#2563eb">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="default">
+<meta name="apple-mobile-web-app-title" content="お薬管理">
+<meta name="format-detection" content="telephone=no">
+<link rel="apple-touch-icon" href="./apple-touch-icon.png">
+<link rel="icon" href="./favicon-32.png" sizes="32x32">
+
+<link rel="stylesheet" href="./tailwind.css">
+<style>
+  html { -webkit-text-size-adjust: 100%; }
+  body {
+    margin: 0;
+    background: #e5e7eb;
+    /* 画面を上下に引っ張ったときの跳ね返りを抑えます */
+    overscroll-behavior-y: none;
+    -webkit-font-smoothing: antialiased;
+    font-family: -apple-system, BlinkMacSystemFont, "Hiragino Sans", "Noto Sans JP",
+                 "Helvetica Neue", Arial, sans-serif;
+  }
+  /* 画面いっぱいの高さ。dvhはSafariのアドレスバーの伸び縮みに追従します */
+  .app-min-h { min-height: 100vh; min-height: 100dvh; }
+  #root { min-height: 100vh; min-height: 100dvh; }
+
+  /* ボタンをタップしたときの青い枠や、ダブルタップの拡大を抑えます */
+  button, a, label, select, input[type="file"] { -webkit-tap-highlight-color: transparent; touch-action: manipulation; }
+  button { -webkit-appearance: none; appearance: none; }
+  select { -webkit-appearance: none; appearance: none; }
+  /* iOSは文字が16px未満の入力欄で自動的に画面を拡大するため、16pxを下回らないようにします */
+  input, select, textarea { font-size: 16px; }
+  input[type="datetime-local"] { min-height: 3.4rem; }
+
+  /* ノッチやホームバーにかからないよう、安全領域の分だけ余白を足します */
+  .safe-top    { padding-top: calc(1rem + env(safe-area-inset-top)); }
+  .safe-bottom { padding-bottom: calc(0.75rem + env(safe-area-inset-bottom)); }
+  .main-pad    { padding-bottom: calc(9rem + env(safe-area-inset-bottom)); }
+  .safe-modal-bottom { padding-bottom: calc(2.5rem + env(safe-area-inset-bottom)); }
+  .toast-pos   { top: calc(0.75rem + env(safe-area-inset-top)); }
+
+  .modal-sheet { animation: sheet-up 0.22s ease-out; }
+  @keyframes sheet-up { from { transform: translateY(14px); opacity: 0.4; } to { transform: none; opacity: 1; } }
+
+  /* 読み込み中の表示 */
+  #boot { display: flex; align-items: center; justify-content: center; min-height: 60vh;
+          color: #9ca3af; font-size: 0.85rem; font-weight: 700; }
+</style>
+</head>
+<body class="flex justify-center items-start">
+  <div id="root" class="w-full max-w-md bg-gray-50 shadow-2xl relative flex flex-col">
+    <div id="boot">読み込んでいます…</div>
+  </div>
+
+  <script src="./react.production.min.js"></script>
+  <script src="./react-dom.production.min.js"></script>
+  <script src="./app.js"></script>
+  <script>
+    // オフラインでも起動できるように、ファイルを端末に保存しておきます
+    if ("serviceWorker" in navigator) {
+      window.addEventListener("load", function () {
+        navigator.serviceWorker.register("./sw.js").catch(function () {});
+      });
+    }
+  </script>
+</body>
+</html>

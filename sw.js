@@ -2,12 +2,14 @@
    一度開いたファイルを端末に保存しておくことで、
    電波が届かない場所でもアプリを起動できるようにします。 */
 
-const CACHE = "okusuri-v1";
+const CACHE = "okusuri-v3";
 
 // 自分のサイト内のファイルは、インストール時にまとめて保存しておきます
 const APP_SHELL = [
   "./",
   "./index.html",
+  "./tailwind.css",
+  "./app.js",
   "./manifest.webmanifest",
   "./apple-touch-icon.png",
   "./icon-192.png",
@@ -45,8 +47,11 @@ self.addEventListener("fetch", (event) => {
     event.respondWith(
       fetch(req)
         .then((res) => {
-          const copy = res.clone();
-          caches.open(CACHE).then((c) => c.put("./index.html", copy)).catch(() => {});
+          // 404などの失敗した応答を保存してしまうと、直ったあとも壊れたままになります
+          if (res && res.ok) {
+            const copy = res.clone();
+            caches.open(CACHE).then((c) => c.put("./index.html", copy)).catch(() => {});
+          }
           return res;
         })
         .catch(() => caches.match("./index.html").then((r) => r || caches.match("./")))

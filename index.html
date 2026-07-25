@@ -52,18 +52,39 @@
   @keyframes sheet-up { from { transform: translateY(14px); opacity: 0.4; } to { transform: none; opacity: 1; } }
 
   /* 読み込み中の表示 */
-  #boot { display: flex; align-items: center; justify-content: center; min-height: 60vh;
+  #boot { display: flex; flex-direction: column; align-items: center; justify-content: center;
+          min-height: 70vh; padding: 1.5rem; text-align: center;
           color: #9ca3af; font-size: 0.85rem; font-weight: 700; }
+  #boot-err { display: none; margin-top: 1rem; max-width: 22rem; color: #b91c1c;
+              background: #fef2f2; border: 1px solid #fecaca; border-radius: 1rem;
+              padding: 1rem 1.1rem; font-weight: 500; font-size: 0.8rem;
+              line-height: 1.8; text-align: left; }
+  #boot-err b { display: block; margin-bottom: 0.4rem; font-size: 0.85rem; }
+  #boot-err code { display: block; margin-top: 0.5rem; padding: 0.5rem 0.6rem; background: #fff;
+                   border-radius: 0.5rem; color: #7f1d1d; font-size: 0.72rem;
+                   word-break: break-all; }
 </style>
 </head>
 <body class="flex justify-center items-start">
   <div id="root" class="w-full max-w-md bg-gray-50 shadow-2xl relative flex flex-col">
-    <div id="boot">読み込んでいます…</div>
+    <div id="boot">
+      <span id="boot-msg">読み込んでいます…</span>
+      <div id="boot-err"></div>
+    </div>
   </div>
 
-  <script src="./react.production.min.js"></script>
-  <script src="./react-dom.production.min.js"></script>
-  <script src="./app.js"></script>
+  <script>
+    // 起動できなかったときに、原因を画面に出すための下準備です
+    window.__missing = [];
+    window.__error = null;
+    window.__miss = function (f) { window.__missing.push(f); };
+    window.addEventListener("error", function (e) {
+      if (!window.__error && e && e.message) window.__error = e.message;
+    });
+  </script>
+
+  <script src="./app.js" onerror="__miss('app.js')"></script>
+
   <script>
     // オフラインでも起動できるように、ファイルを端末に保存しておきます
     if ("serviceWorker" in navigator) {
@@ -71,6 +92,44 @@
         navigator.serviceWorker.register("./sw.js").catch(function () {});
       });
     }
+
+    // 画面のCSSが読み込めているかを確かめます
+    (function () {
+      var probe = document.createElement("div");
+      probe.className = "hidden";
+      document.body.appendChild(probe);
+      var ok = getComputedStyle(probe).display === "none";
+      document.body.removeChild(probe);
+      if (!ok) window.__miss("tailwind.css");
+    })();
+
+    // 4秒たっても画面が出ないときは、分かっている原因を表示します
+    setTimeout(function () {
+      var boot = document.getElementById("boot");
+      if (!boot || !document.body.contains(boot)) return;  // 起動できていれば何もしない
+
+      var msg = document.getElementById("boot-msg");
+      var box = document.getElementById("boot-err");
+      var html = "";
+
+      if (window.__missing.length > 0) {
+        html += "<b>必要なファイルが見つかりませんでした</b>" +
+                "次のファイルを、index.html とまったく同じ場所に置いてください。" +
+                "フォルダごとではなく、中身のファイルを直接並べる必要があります。" +
+                "<code>" + window.__missing.join("<br>") + "</code>";
+      } else if (window.__error) {
+        html += "<b>読み込み中にエラーが起きました</b>" +
+                "次の内容をそのまま伝えていただければ、こちらで原因を調べます。" +
+                "<code>" + String(window.__error).replace(/</g, "&lt;") + "</code>";
+      } else {
+        html += "<b>画面を表示できませんでした</b>" +
+                "ページを再読み込みしても直らない場合は、この画面の写真を送ってください。" +
+                "<code>" + String(location.href).replace(/</g, "&lt;") + "</code>";
+      }
+
+      if (msg) msg.textContent = "アプリを起動できませんでした";
+      if (box) { box.innerHTML = html; box.style.display = "block"; }
+    }, 4000);
   </script>
 </body>
 </html>

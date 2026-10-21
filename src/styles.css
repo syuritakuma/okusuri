@@ -1,0 +1,35 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+html { -webkit-text-size-adjust: 100%; }
+body {
+  margin: 0;
+  background: #e5e7eb;
+  /* 画面を上下に引っ張ったときの跳ね返りを抑えます */
+  overscroll-behavior-y: none;
+  -webkit-font-smoothing: antialiased;
+  font-family: -apple-system, BlinkMacSystemFont, "Hiragino Sans", "Noto Sans JP",
+               "Helvetica Neue", Arial, sans-serif;
+}
+/* 画面いっぱいの高さ。dvhはSafariのアドレスバーの伸び縮みに追従します */
+.app-min-h { min-height: 100vh; min-height: 100dvh; }
+#root { min-height: 100vh; min-height: 100dvh; }
+
+/* ボタンをタップしたときの青い枠や、ダブルタップの拡大を抑えます */
+button, a, label, select, input[type="file"] { -webkit-tap-highlight-color: transparent; touch-action: manipulation; }
+button { -webkit-appearance: none; appearance: none; }
+select { -webkit-appearance: none; appearance: none; }
+/* iOSは文字が16px未満の入力欄で自動的に画面を拡大するため、16pxを下回らないようにします */
+input, select, textarea { font-size: 16px; }
+input[type="datetime-local"] { min-height: 3.4rem; }
+
+/* ノッチやホームバーにかからないよう、安全領域の分だけ余白を足します */
+.safe-top    { padding-top: calc(1rem + env(safe-area-inset-top)); }
+.safe-bottom { padding-bottom: calc(0.75rem + env(safe-area-inset-bottom)); }
+.main-pad    { padding-bottom: calc(9rem + env(safe-area-inset-bottom)); }
+.safe-modal-bottom { padding-bottom: calc(2.5rem + env(safe-area-inset-bottom)); }
+.toast-pos   { top: calc(0.75rem + env(safe-area-inset-top)); }
+
+.modal-sheet { animation: sheet-up 0.22s ease-out; }
+@keyframes sheet-up { from { transform: translateY(14px); opacity: 0.4; } to { transform: none; opacity: 1; } }

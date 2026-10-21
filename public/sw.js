@@ -2,14 +2,17 @@
    一度開いたファイルを端末に保存しておくことで、
    電波が届かない場所でもアプリを起動できるようにします。 */
 
-const CACHE = "okusuri-v3";
+// __BUILD_VERSION__ は、ビルドのときに版番号へ置き換わります。
+// 版番号が変わるとこのファイルの中身も変わるため、ブラウザが新しい版に入れ替えてくれます。
+const VERSION = "__BUILD_VERSION__";
+const CACHE = "okusuri-" + VERSION;
 
 // 自分のサイト内のファイルは、インストール時にまとめて保存しておきます
 const APP_SHELL = [
   "./",
   "./index.html",
-  "./tailwind.css",
-  "./app.js",
+  "./tailwind.css?v=" + VERSION,
+  "./app.js?v=" + VERSION,
   "./manifest.webmanifest",
   "./apple-touch-icon.png",
   "./icon-192.png",

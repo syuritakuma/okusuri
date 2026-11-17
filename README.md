@@ -59,7 +59,13 @@ npm run build    # 公開用のファイルを dist/ に作る
 
 ## 公開のしかた
 
-`npm run build` を実行してから、`dist/` の**中身のファイル**をすべて、公開先の同じ場所に並べて置きます。フォルダごとではなく、`index.html` と同じ階層に `app.js` や `tailwind.css` が並ぶように置いてください。
+アプリは GitHub Pages で公開しています。GitHub Pages は、GitHub のリポジトリの中身を無料でウェブサイトとして公開できる仕組みです。公開先のアドレスは https://syuritakuma.github.io/okusuri/ です。
+
+`main` ブランチに変更が入ると、GitHub Actions（GitHub 上で決まった作業を自動で行う仕組み）が、テストとビルドを行ってからサイトを自動で更新します。手順は `.github/workflows/pages.yml` に書いてあります。テストが1つでも失敗した場合は公開されないので、壊れた版が公開されることはありません。公開の進み具合は、リポジトリの「Actions」タブで確認できます。
+
+最初の1回だけ、リポジトリの設定で GitHub Pages を有効にする必要があります。「Settings」→「Pages」を開き、「Build and deployment」の「Source」を「GitHub Actions」にしてください。
+
+ほかのサーバーに置きたい場合は、`npm run build` を実行してから、`dist/` の**中身のファイル**をすべて、公開先の同じ場所に並べて置きます。フォルダごとではなく、`index.html` と同じ階層に `app.js` や `tailwind.css` が並ぶように置いてください。
 
 ビルドのたびに、ファイルに「版番号」が書き込まれます。端末は一度読み込んだファイルを保存して使い回しますが、版番号が変わると新しいファイルを取り直すため、更新が確実に反映されます。
 

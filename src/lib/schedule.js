@@ -49,6 +49,51 @@ export function computeTodayTasks(medicines, logs, now = new Date()) {
   return list.sort((a, b) => TIMING_ORDER[a.timingKey] - TIMING_ORDER[b.timingKey]);
 }
 
+/* ---------- カレンダー用：ある1日の予定 ---------- */
+
+// 予定のまとまり（朝・昼・夜・週1回）の名前です
+export const SLOT_LABELS = { morning: "朝", noon: "昼", evening: "夜", weekly: "週1回" };
+
+// 過去の日の分をカレンダーから記録するときに、何時に飲んだことにするかです
+export const SLOT_HOURS = { morning: 8, noon: 12, evening: 19, weekly: 9 };
+
+const startedBy = (med, day) => startOfDay(med.createdAt ? new Date(med.createdAt) : day) <= day;
+
+// 週1回のお薬について、予定日 start から次の予定日の前日までに使った記録を返します（なければ undefined）
+const takenLogInCycle = (logs, med, start) => {
+  const end = addDays(start, 7);
+  return logs.find((l) => l.medId === med.id && new Date(l.timestamp) >= start && new Date(l.timestamp) < end);
+};
+
+/* その日に飲む予定のお薬を、朝・昼・夜・週1回のまとまり（slot）に分けて返します。
+   予定のないまとまりは含めません。お薬を登録する前の日には、そのお薬を含めません。
+   各お薬（item）には、飲んだ記録（log）があれば付けます。 */
+export function computeDaySlots(medicines, logs, day) {
+  const d = startOfDay(day);
+  const weekday = WEEK_DAYS[d.getDay()];
+  const slots = Object.keys(SLOT_LABELS).map((key) => ({ key, label: SLOT_LABELS[key], items: [] }));
+  const byKey = Object.fromEntries(slots.map((s) => [s.key, s]));
+  medicines.forEach((med) => {
+    if (!startedBy(med, d)) return;
+    if (med.type === "daily") {
+      TIMINGS.forEach(({ key, label }) => {
+        if (med.timings && med.timings[key]) {
+          byKey[key].items.push({ med, timingKey: key, timingLabel: label, log: takenLogOn(logs, med.id, key, d) });
+        }
+      });
+    } else if (weekday === med.weeklyDay) {
+      byKey.weekly.items.push({ med, timingKey: "weekly", timingLabel: weeklyLabel(med), log: takenLogInCycle(logs, med, d) });
+    }
+  });
+  return slots.filter((s) => s.items.length > 0);
+}
+
+// まとまりの中のお薬を全部飲んだら "done"、一部なら "partial"、まだなら "none" を返します
+export const slotStatus = (slot) => {
+  const taken = slot.items.filter((i) => i.log).length;
+  return taken === 0 ? "none" : taken === slot.items.length ? "done" : "partial";
+};
+
 // その日に飲む予定だった回数です。お薬を登録する前の日は数えません。
 const expectedOn = (medicines, day) => {
   let n = 0;

@@ -149,6 +149,21 @@ export const IcDown = (p) => (
     <path d="m6 9 6 6 6-6" />
   </Svg>
 );
+export const IcLeft = (p) => (
+  <Svg {...p}>
+    <path d="m15 18-6-6 6-6" />
+  </Svg>
+);
+export const IcRight = (p) => (
+  <Svg {...p}>
+    <path d="m9 18 6-6-6-6" />
+  </Svg>
+);
+export const IcList = (p) => (
+  <Svg {...p}>
+    <path d="M8 6h13M8 12h13M8 18h13M3 6h.01M3 12h.01M3 18h.01" />
+  </Svg>
+);
 export const IcSort = (p) => (
   <Svg {...p}>
     <path d="M3 6h13M3 12h9M3 18h5" />

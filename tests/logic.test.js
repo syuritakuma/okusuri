@@ -4,7 +4,7 @@ import { test } from "node:test";
 import { addDays, lastOccurrenceOfWeekday, startOfDay } from "../src/lib/date.js";
 import { daysLeftAt, estimateDaysLeft, isLowAt, isLowStock, normalizeMedicine, scheduleLabel, stockAt } from "../src/lib/medicine.js";
 import * as records from "../src/lib/records.js";
-import { computeStats, computeTodayTasks } from "../src/lib/schedule.js";
+import { computeDaySlots, computeStats, computeTodayTasks, slotStatus } from "../src/lib/schedule.js";
 import { backupFile, parseBackup } from "../src/lib/storage.js";
 
 // 2026年10月21日（水）の昼12時を「今」として扱います
@@ -246,4 +246,40 @@ test("記録した直後に、その記録で取り消すと元どおりにな�
   assert.equal(undone.logs.length, 0);
   // 今日の一覧も「まだ飲んでいない」に戻る
   assert.equal(computeTodayTasks(undone.medicines, undone.logs, NOW)[0].done, false);
+});
+
+/* ---------- カレンダー ---------- */
+
+test("1日の予定を朝・昼・夜・週1回に分け、飲んだ記録を付ける", () => {
+  const noonMed = { ...daily, id: 3, name: "昼の薬", timings: { noon: true } };
+  const monday = addDays(startOfDay(NOW), -2); // 10月19日（月）＝週1の注射の日
+  const logs = [log(1, "morning", at(2, 8)), log(2, "weekly", at(1, 9))];
+  const slots = computeDaySlots([daily, weekly, noonMed], logs, monday);
+  assert.deepEqual(slots.map((s) => [s.key, s.items.length]), [["morning", 1], ["noon", 1], ["evening", 1], ["weekly", 1]]);
+  assert.deepEqual(slots.map(slotStatus), ["done", "none", "none", "done"]); // 注射は翌日に打っても、その週の分として数える
+
+  // 予定日でない日には週1回のまとまりが出ない
+  assert.equal(computeDaySlots([weekly], [], NOW).length, 0);
+  // 登録する前の日には出ない
+  assert.equal(computeDaySlots([{ ...daily, createdAt: at(0) }], [], addDays(NOW, -1)).length, 0);
+});
+
+test("一部だけ飲んだまとまりは partial になる", () => {
+  const second = { ...daily, id: 3, name: "もう1つの薬" };
+  const [morning] = computeDaySlots([daily, second], [log(1, "morning", at(0, 8))], NOW);
+  assert.equal(slotStatus(morning), "partial");
+});
+
+test("まとめて記録：在庫が足りない分だけ飛ばし、ほかは記録する", () => {
+  const empty = { ...weekly, stocks: { home: 0, parents: 0 }, stock: 0 };
+  const entries = [
+    { medId: 1, amount: 1, location: "home", timingKey: "morning", timingLabel: "朝", timestamp: at(0, 8) },
+    { medId: 1, amount: 1, location: "home", timingKey: "evening", timingLabel: "夜", timestamp: at(0, 19) },
+    { medId: 2, amount: 1, location: "home", timingKey: "weekly", timingLabel: "毎週月曜", timestamp: at(0, 9) },
+  ];
+  const r = records.recordDoses({ medicines: [daily, empty], logs: [] }, entries);
+  assert.equal(r.logs.length, 2);
+  assert.equal(r.failed.length, 1);
+  assert.equal(r.failed[0].entry.medId, 2);
+  assert.equal(r.data.medicines[0].stock, 8);
 });

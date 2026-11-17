@@ -1,7 +1,16 @@
 /* 画面の見た目に関する共通の設定です */
-import { IcMoon, IcSun, IcSunrise } from "./icons.jsx";
+import { IcCalendar, IcMoon, IcSun, IcSunrise } from "./icons.jsx";
 
-export const TIMING_ICONS = { morning: IcSunrise, noon: IcSun, evening: IcMoon };
+export const TIMING_ICONS = { morning: IcSunrise, noon: IcSun, evening: IcMoon, weekly: IcCalendar };
+
+// カレンダーの丸印の色です。全部飲んだら濃い色、一部だけなら薄い色、まだなら白丸にします。
+export const SLOT_DOT = {
+  morning: { done: "bg-blue-600", partial: "bg-blue-300" },
+  noon: { done: "bg-orange-500", partial: "bg-orange-300" },
+  evening: { done: "bg-indigo-600", partial: "bg-indigo-300" },
+  weekly: { done: "bg-purple-600", partial: "bg-purple-300" },
+};
+export const DOT_NONE = "bg-white border border-gray-300";
 
 export const TIMING_STYLE = {
   morning: { on: "bg-blue-600 active:bg-blue-700", soft: "border-blue-500 bg-blue-50 text-blue-700" },

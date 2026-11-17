@@ -87,6 +87,11 @@ export function deleteLog(data, logId) {
   };
 }
 
+// 複数の記録をまとめて取り消し、それぞれ飲んだ場所の在庫に戻します。見つからない記録は飛ばします。
+export function deleteLogs(data, logIds) {
+  return { data: logIds.reduce((d, id) => deleteLog(d, id).data, data) };
+}
+
 // fields.stocks に場所ごとの在庫数（{ home: 10, parents: 4 } の形）を入れて渡します
 export function addMedicine(data, fields, now = new Date()) {
   const { stocks, ...rest } = fields;

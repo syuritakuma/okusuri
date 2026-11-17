@@ -4,6 +4,7 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import BottomNav, { TABS } from "./components/BottomNav.jsx";
 import ConfirmDialog from "./components/ConfirmDialog.jsx";
+import DaySheet from "./components/DaySheet.jsx";
 import LogForm from "./components/LogForm.jsx";
 import MedicineForm from "./components/MedicineForm.jsx";
 import Modal from "./components/Modal.jsx";
@@ -13,11 +14,21 @@ import SettingsSheet from "./components/SettingsSheet.jsx";
 import Toast from "./components/Toast.jsx";
 import { useToast, useToday, useTyping } from "./hooks.js";
 import { IcGear, IcTrash } from "./icons.jsx";
-import { formatLongDate } from "./lib/date.js";
+import { formatLongDate, sameDay } from "./lib/date.js";
 import { isLowAt, isLowStock, locationLabel, otherLocation } from "./lib/medicine.js";
 import * as records from "./lib/records.js";
-import { computeStats, computeTodayTasks } from "./lib/schedule.js";
-import { backupFile, loadData, loadLocation, parseBackup, saveLocation, saveLogs, saveMedicines } from "./lib/storage.js";
+import { SLOT_HOURS, SLOT_LABELS, computeDaySlots, computeStats, computeTodayTasks } from "./lib/schedule.js";
+import {
+  backupFile,
+  loadData,
+  loadLocation,
+  loadTodayView,
+  parseBackup,
+  saveLocation,
+  saveLogs,
+  saveMedicines,
+  saveTodayView,
+} from "./lib/storage.js";
 import MedsScreen from "./screens/MedsScreen.jsx";
 import StatsScreen from "./screens/StatsScreen.jsx";
 import TodayScreen from "./screens/TodayScreen.jsx";
@@ -49,6 +60,14 @@ export default function App() {
   useEffect(() => {
     saveLocation(location);
   }, [location]);
+
+  // 「今日」タブを一覧（list）で見るか、月カレンダー（calendar）で見るかです
+  const [todayView, setTodayView] = useState(loadTodayView);
+  useEffect(() => {
+    saveTodayView(todayView);
+  }, [todayView]);
+  // カレンダーで選んだ日です（その日の分をまとめて記録する画面を開いている間だけ入ります）
+  const [selectedDay, setSelectedDay] = useState(null);
 
   // 開いているシートや確認画面です（どれも開いていなければ null）
   const [editingMed, setEditingMed] = useState(null);
@@ -103,14 +122,60 @@ export default function App() {
     );
   };
 
-  // 記録を取り消して、飲んだ場所の在庫を元に戻します
-  const undoLog = (logId) => {
+  // 記録を取り消して、飲んだ場所の在庫を元に戻します（まとめて記録した分は、まとめて取り消します）
+  const undoLogs = (logIds) => {
     const current = dataRef.current;
-    if (!current.logs.some((l) => l.id === logId)) {
+    const remaining = logIds.filter((id) => current.logs.some((l) => l.id === id));
+    if (remaining.length === 0) {
       notify("この記録はすでに取り消されています。");
       return;
     }
-    apply(records.deleteLog(current, logId), "記録を取り消して、在庫を元に戻しました。");
+    const next = remaining.reduce((d, id) => records.deleteLog(d, id).data, current);
+    setData(next);
+    notify(
+      remaining.length > 1
+        ? `${remaining.length}件の記録を取り消して、在庫を元に戻しました。`
+        : "記録を取り消して、在庫を元に戻しました。",
+    );
+  };
+  const undoLog = (logId) => undoLogs([logId]);
+
+  /* カレンダーから、その日の分をまとめて記録します。items は computeDaySlots のお薬（item）の一覧です。
+     今日の分は今の時刻で、過去の日の分はその日の朝8時・昼12時などの時刻で記録します。
+     在庫が足りないお薬は飛ばして、ほかの分だけ記録します。 */
+  const recordBatch = (items, day) => {
+    const isToday = sameDay(day, new Date());
+    const timestampFor = (timingKey) => {
+      if (isToday) return new Date();
+      const t = new Date(day);
+      t.setHours(SLOT_HOURS[timingKey], 0, 0, 0);
+      return t;
+    };
+    const result = records.recordDoses(
+      data,
+      items.map((item) => ({
+        medId: item.med.id,
+        amount: item.med.dose,
+        location,
+        timingKey: item.timingKey,
+        timingLabel: item.timingLabel,
+        timestamp: timestampFor(item.timingKey).toISOString(),
+        ...(isToday ? {} : { manual: true }),
+      })),
+    );
+    const dayName = isToday ? "今日" : `${day.getMonth() + 1}月${day.getDate()}日`;
+    const parts = [];
+    if (result.logs.length > 0) {
+      setData(result.data);
+      const slotNames = [...new Set(result.logs.map((l) => SLOT_LABELS[l.timingKey]))].join("・");
+      parts.push(`${dayName}の${slotNames}の分を記録しました（${result.logs.length}件）。`);
+    }
+    if (result.failed.length > 0) {
+      const names = [...new Set(result.failed.map((f) => data.medicines.find((m) => m.id === f.entry.medId).name))].join("、");
+      parts.push(`${names}は${locationLabel(location)}の在庫が足りないため記録できませんでした。`);
+    }
+    const created = result.logs.map((l) => l.id);
+    notify(parts.join(""), created.length > 0 ? { label: "取り消す", onClick: () => undoLogs(created) } : undefined);
   };
 
   // 「今日」の一覧で「済み」を押したときに、確認してから取り消します
@@ -179,6 +244,10 @@ export default function App() {
   /* ---------- 集計 ---------- */
   // today を含めることで、日付が変わったときに「今日」の内容が作り直されます
   const todayTasks = useMemo(() => computeTodayTasks(medicines, logs, new Date()), [medicines, logs, today]);
+  const daySlots = useMemo(
+    () => (selectedDay ? computeDaySlots(medicines, logs, selectedDay) : []),
+    [medicines, logs, selectedDay],
+  );
   const stats = useMemo(() => computeStats(medicines, logs, statsRange, new Date()), [medicines, logs, statsRange, today]);
   const lowStockMeds = medicines.filter(isLowStock);
   // 今日まだ飲んでいないお薬のうち、今いる場所の在庫が少ないものです
@@ -276,6 +345,12 @@ export default function App() {
             onLocationChange={setLocation}
             onTake={takeMedicine}
             onUndo={confirmUndoTask}
+            view={todayView}
+            onViewChange={setTodayView}
+            medicines={medicines}
+            logs={logs}
+            today={today}
+            onSelectDay={setSelectedDay}
           />
         )}
         {activeTab === "meds" && (
@@ -368,6 +443,17 @@ export default function App() {
 
       {refillMed && (
         <RefillSheet med={refillMed} defaultLocation={location} onApply={applyRefill} onClose={() => setRefillMed(null)} />
+      )}
+
+      {selectedDay && (
+        <DaySheet
+          day={selectedDay}
+          slots={daySlots}
+          location={location}
+          onRecord={recordBatch}
+          onUndo={confirmUndoTask}
+          onClose={() => setSelectedDay(null)}
+        />
       )}
 
       {moveMed && (

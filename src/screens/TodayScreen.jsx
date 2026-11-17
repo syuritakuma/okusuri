@@ -1,13 +1,35 @@
+import CalendarView from "../components/CalendarView.jsx";
 import LocationPicker from "../components/LocationPicker.jsx";
 import MedThumb from "../components/MedThumb.jsx";
-import { IcAlert, IcCalendar, IcCheck } from "../icons.jsx";
+import { IcAlert, IcCalendar, IcCheck, IcList } from "../icons.jsx";
 import { estimateDaysLeft, locationLabel, otherLocation, stockAt } from "../lib/medicine.js";
 import { CARD, EMPTY_BOX, TIMING_ICONS, TIMING_STYLE } from "../ui.js";
 
+const VIEWS = [
+  { key: "list", label: "リスト", Icon: IcList },
+  { key: "calendar", label: "カレンダー", Icon: IcCalendar },
+];
+
 /* 「今日」タブ：今日飲むお薬の一覧と、進み具合・在庫の警告を表示します。
    「飲んだ」を押すと、上で選んでいる「今いる場所」の在庫が減ります。
-   飲み終えた項目の「済み」を押すと、その記録を取り消せます（間違えて押したとき用）。 */
-export default function TodayScreen({ tasks, lowStockMeds, lowHereMeds, location, onLocationChange, onTake, onUndo }) {
+   飲み終えた項目の「済み」を押すと、その記録を取り消せます（間違えて押したとき用）。
+   「リスト｜カレンダー」で、今日の一覧と月カレンダーを切り替えられます。
+   カレンダーで日付を押すと onSelectDay が呼ばれ、その日の分をまとめて記録する画面が開きます。 */
+export default function TodayScreen({
+  tasks,
+  lowStockMeds,
+  lowHereMeds,
+  location,
+  onLocationChange,
+  onTake,
+  onUndo,
+  view,
+  onViewChange,
+  medicines,
+  logs,
+  today,
+  onSelectDay,
+}) {
   const done = tasks.filter((t) => t.done).length;
   const total = tasks.length;
   const rate = total > 0 ? Math.round((done / total) * 100) : 0;
@@ -20,28 +42,48 @@ export default function TodayScreen({ tasks, lowStockMeds, lowHereMeds, location
         <LocationPicker value={location} onChange={onLocationChange} label="今いる場所" />
       </div>
 
-      <div className={CARD + " p-6"}>
-        <div className="flex items-end justify-between mb-3">
-          <div>
-            <p className="text-xs font-bold text-gray-400 tracking-wider">今日の進み具合</p>
-            <p className="text-3xl font-extrabold text-gray-900 mt-1">
-              {done}
-              <span className="text-base font-bold text-gray-400"> / {total} 回</span>
+      <div className="flex bg-gray-200/70 rounded-2xl p-1" role="radiogroup" aria-label="表示の切り替え">
+        {VIEWS.map(({ key, label, Icon }) => (
+          <button
+            key={key}
+            role="radio"
+            aria-checked={view === key}
+            onClick={() => onViewChange(key)}
+            className={
+              "flex-1 py-2.5 rounded-xl text-sm font-bold flex items-center justify-center gap-1.5 " +
+              (view === key ? "bg-white text-gray-900 shadow-sm" : "text-gray-500")
+            }
+          >
+            <Icon size={16} />
+            {label}
+          </button>
+        ))}
+      </div>
+
+      {view === "list" && (
+        <div className={CARD + " p-6"}>
+          <div className="flex items-end justify-between mb-3">
+            <div>
+              <p className="text-xs font-bold text-gray-400 tracking-wider">今日の進み具合</p>
+              <p className="text-3xl font-extrabold text-gray-900 mt-1">
+                {done}
+                <span className="text-base font-bold text-gray-400"> / {total} 回</span>
+              </p>
+            </div>
+            <p className={"text-4xl font-extrabold " + (complete ? "text-green-500" : "text-blue-600")}>
+              {rate}
+              <span className="text-lg">%</span>
             </p>
           </div>
-          <p className={"text-4xl font-extrabold " + (complete ? "text-green-500" : "text-blue-600")}>
-            {rate}
-            <span className="text-lg">%</span>
-          </p>
+          <div className="h-3 bg-gray-100 rounded-full overflow-hidden">
+            <div
+              className={"h-full rounded-full transition-all duration-500 " + (complete ? "bg-green-500" : "bg-blue-600")}
+              style={{ width: rate + "%" }}
+            />
+          </div>
+          {complete && <p className="text-sm font-bold text-green-600 mt-3">今日の分はすべて飲み終わりました。</p>}
         </div>
-        <div className="h-3 bg-gray-100 rounded-full overflow-hidden">
-          <div
-            className={"h-full rounded-full transition-all duration-500 " + (complete ? "bg-green-500" : "bg-blue-600")}
-            style={{ width: rate + "%" }}
-          />
-        </div>
-        {complete && <p className="text-sm font-bold text-green-600 mt-3">今日の分はすべて飲み終わりました。</p>}
-      </div>
+      )}
 
       {lowStockMeds.length > 0 && (
         <div className="bg-red-50 border border-red-100 p-5 rounded-3xl flex items-start gap-3">
@@ -69,7 +111,9 @@ export default function TodayScreen({ tasks, lowStockMeds, lowHereMeds, location
         </div>
       )}
 
-      {tasks.length === 0 ? (
+      {view === "calendar" ? (
+        <CalendarView medicines={medicines} logs={logs} today={today} onSelectDay={onSelectDay} />
+      ) : tasks.length === 0 ? (
         <div className={EMPTY_BOX}>
           <IcCalendar size={44} className="mx-auto mb-4 opacity-40" />
           <p className="font-medium">今日飲むお薬は登録されていません。</p>

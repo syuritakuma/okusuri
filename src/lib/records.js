@@ -39,6 +39,25 @@ export function recordDose(data, entry) {
   };
 }
 
+/* 複数の服用をまとめて記録します（カレンダーの「まとめて記録」で使います）。
+   在庫が足りないなどで記録できなかったものは飛ばして、failed に理由と一緒に入れて返します。
+   記録できたものは logs に入れて返します。 */
+export function recordDoses(data, entries) {
+  let current = data;
+  const created = [];
+  const failed = [];
+  entries.forEach((entry) => {
+    const r = recordDose(current, entry);
+    if (r.error) {
+      failed.push({ entry, error: r.error });
+    } else {
+      current = r.data;
+      created.push(r.log);
+    }
+  });
+  return { data: current, logs: created, failed };
+}
+
 // 記録を直します。在庫は「元の場所に元の分を戻してから、新しい場所から新しい分を引く」形で調整します。
 export function updateLog(data, logId, changes) {
   const before = data.logs.find((l) => l.id === logId);

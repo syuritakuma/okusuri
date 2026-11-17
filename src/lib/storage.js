@@ -47,6 +47,11 @@ export function loadLocation() {
 }
 export const saveLocation = (location) => saveJSON(LOCATION_KEY, location);
 
+// 「今日」タブの表示の形（"list"＝一覧、"calendar"＝月カレンダー）です。これも端末ごとの設定です。
+export const TODAY_VIEW_KEY = "med_app_today_view_v1";
+export const loadTodayView = () => (loadJSON(TODAY_VIEW_KEY, "list") === "calendar" ? "calendar" : "list");
+export const saveTodayView = (view) => saveJSON(TODAY_VIEW_KEY, view);
+
 /* バックアップの形式は version 3 です。version 2 との違いは、お薬に場所ごとの在庫数（stocks）が
    加わったことだけです。合計の在庫数（stock）も今までどおり入れているので、
    version 2 のバックアップも読み込めます（そのときは全部を自宅の在庫として扱います）。 */

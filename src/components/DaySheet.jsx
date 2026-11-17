@@ -8,10 +8,14 @@ import Modal from "./Modal.jsx";
 /* カレンダーで日付を押したときに出る、その日の服用をまとめて記録する画面です。
    「まだの分を全部まとめて記録」で朝・昼・夜をまとめて、各まとまりのボタンで「朝」などをまとめて、
    お薬ごとのボタンで1つずつ記録できます。記録した分は「済み」になり、押すと取り消せます。
+   取り消しも、「朝をまとめて取り消す」や「この日の記録を全部取り消す」でまとめてできます
+   （onUndoMany(お薬の一覧, 日, "朝" などの名前／1日分なら null) を呼び、App が確認してから取り消します）。
    slots は App で最新のデータから計算して渡すので、記録するとすぐに表示が変わります。 */
-export default function DaySheet({ day, slots, location, onRecord, onUndo, onClose }) {
+export default function DaySheet({ day, slots, location, onRecord, onUndo, onUndoMany, onClose }) {
   const isToday = sameDay(day, new Date());
-  const pending = slots.flatMap((s) => s.items.filter((i) => !i.log));
+  const allItems = slots.flatMap((s) => s.items);
+  const pending = allItems.filter((i) => !i.log);
+  const takenCount = allItems.length - pending.length;
 
   return (
     <Modal title={`${formatLongDate(day)}の服用`} onClose={onClose}>
@@ -40,20 +44,38 @@ export default function DaySheet({ day, slots, location, onRecord, onUndo, onClo
 
           <div className="space-y-3">
             {slots.map((slot) => (
-              <SlotCard key={slot.key} slot={slot} day={day} location={location} onRecord={onRecord} onUndo={onUndo} />
+              <SlotCard
+                key={slot.key}
+                slot={slot}
+                day={day}
+                location={location}
+                onRecord={onRecord}
+                onUndo={onUndo}
+                onUndoMany={onUndoMany}
+              />
             ))}
           </div>
+
+          {takenCount > 0 && (
+            <button
+              onClick={() => onUndoMany(allItems, day, null)}
+              className="w-full mt-5 py-3.5 rounded-2xl border border-red-200 text-red-600 font-bold text-sm active:bg-red-50"
+            >
+              この日の記録を全部取り消す（{takenCount}件）
+            </button>
+          )}
         </>
       )}
     </Modal>
   );
 }
 
-function SlotCard({ slot, day, location, onRecord, onUndo }) {
+function SlotCard({ slot, day, location, onRecord, onUndo, onUndoMany }) {
   const Icon = TIMING_ICONS[slot.key];
   const style = TIMING_STYLE[slot.key];
   const pending = slot.items.filter((i) => !i.log);
   const status = slotStatus(slot);
+  const anyTaken = pending.length < slot.items.length;
   return (
     <div className={"bg-white rounded-3xl border p-4 " + (status === "done" ? "border-green-200" : "border-gray-100")}>
       <div className="flex items-center gap-2 mb-2">
@@ -62,13 +84,22 @@ function SlotCard({ slot, day, location, onRecord, onUndo }) {
         <p className="text-[11px] font-bold text-gray-400">
           {slot.items.length - pending.length} / {slot.items.length}
         </p>
-        <div className="flex-1" />
+      </div>
+      <div className="flex gap-2 mb-1">
         {pending.length > 0 && (
           <button
             onClick={() => onRecord(pending, day)}
-            className={"px-3.5 py-2 rounded-xl text-white text-xs font-bold shadow-sm " + style.on}
+            className={"flex-1 py-2.5 rounded-xl text-white text-xs font-bold shadow-sm " + style.on}
           >
             {slot.label}をまとめて記録
+          </button>
+        )}
+        {anyTaken && (
+          <button
+            onClick={() => onUndoMany(slot.items, day, slot.label)}
+            className="flex-1 py-2.5 rounded-xl bg-white border border-red-200 text-red-600 text-xs font-bold active:bg-red-50"
+          >
+            {slot.label}をまとめて取り消す
           </button>
         )}
       </div>

@@ -130,8 +130,7 @@ export default function App() {
       notify("この記録はすでに取り消されています。");
       return;
     }
-    const next = remaining.reduce((d, id) => records.deleteLog(d, id).data, current);
-    setData(next);
+    setData(records.deleteLogs(current, remaining).data);
     notify(
       remaining.length > 1
         ? `${remaining.length}件の記録を取り消して、在庫を元に戻しました。`
@@ -176,6 +175,21 @@ export default function App() {
     }
     const created = result.logs.map((l) => l.id);
     notify(parts.join(""), created.length > 0 ? { label: "取り消す", onClick: () => undoLogs(created) } : undefined);
+  };
+
+  /* カレンダーのその日の画面で、「朝」の分や1日分をまとめて、確認してから取り消します。
+     scopeLabel は "朝" などのまとまりの名前で、1日分を取り消すときは null です。 */
+  const confirmUndoItems = (items, day, scopeLabel) => {
+    const taken = items.filter((i) => i.log);
+    const dayName = sameDay(day, new Date()) ? "今日" : `${day.getMonth() + 1}月${day.getDate()}日`;
+    setConfirmState({
+      title: scopeLabel
+        ? `${scopeLabel}の記録（${taken.length}件）を取り消しますか？`
+        : `この日の記録（${taken.length}件）を全部取り消しますか？`,
+      message: `${dayName}の${scopeLabel ? scopeLabel + "の記録を" : "記録を全部"}取り消して、それぞれ飲んだ場所の在庫に戻します。`,
+      okLabel: "取り消す",
+      onOk: () => undoLogs(taken.map((i) => i.log.id)),
+    });
   };
 
   // 「今日」の一覧で「済み」を押したときに、確認してから取り消します
@@ -452,6 +466,7 @@ export default function App() {
           location={location}
           onRecord={recordBatch}
           onUndo={confirmUndoTask}
+          onUndoMany={confirmUndoItems}
           onClose={() => setSelectedDay(null)}
         />
       )}

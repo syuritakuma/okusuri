@@ -283,3 +283,12 @@ test("まとめて記録：在庫が足りない分だけ飛ばし、ほかは�
   assert.equal(r.failed[0].entry.medId, 2);
   assert.equal(r.data.medicines[0].stock, 8);
 });
+
+test("まとめて取り消すと、それぞれ飲んだ場所の在庫に戻る", () => {
+  const entries = [take("home"), { ...take("parents"), timingKey: "evening", timingLabel: "夜" }];
+  const r = records.recordDoses({ medicines: [split], logs: [] }, entries);
+  assert.deepEqual(r.data.medicines[0].stocks, { home: 5, parents: 1 });
+  const undone = records.deleteLogs(r.data, [...r.logs.map((l) => l.id), "存在しない記録"]).data;
+  assert.deepEqual(undone.medicines[0].stocks, { home: 6, parents: 2 });
+  assert.equal(undone.logs.length, 0);
+});

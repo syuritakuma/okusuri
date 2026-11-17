@@ -2,7 +2,7 @@ import { useState } from "react";
 import { IcImage } from "../icons.jsx";
 import { WEEK_DAYS } from "../lib/date.js";
 import { MAX_IMAGE_BYTES, loadResizedImage } from "../lib/image.js";
-import { TIMINGS, UNITS } from "../lib/medicine.js";
+import { LOCATIONS, TIMINGS, UNITS, stockAt } from "../lib/medicine.js";
 import { BTN_CANCEL, BTN_PRIMARY, INPUT_CLS, LABEL_CLS, TIMING_ICONS, TIMING_STYLE } from "../ui.js";
 
 const choiceCls = (selected, selectedCls) =>
@@ -13,7 +13,10 @@ const choiceCls = (selected, selectedCls) =>
 export default function MedicineForm({ initial, submitLabel, onSubmit, onCancel, notify }) {
   const [name, setName] = useState(initial ? initial.name : "");
   const [efficacy, setEfficacy] = useState(initial && initial.efficacy ? initial.efficacy : "");
-  const [stock, setStock] = useState(initial ? String(initial.stock) : "");
+  // 場所ごとの在庫数です（{ home: "10", parents: "" } のような、入力欄の文字のまま持ちます）
+  const [stocks, setStocks] = useState(() =>
+    Object.fromEntries(LOCATIONS.map((l) => [l.key, initial ? String(stockAt(initial, l.key)) : ""])),
+  );
   const [dose, setDose] = useState(initial ? String(initial.dose) : "1");
   const [unit, setUnit] = useState(initial ? initial.unit : "錠");
   const [image, setImage] = useState(initial ? initial.image : null);
@@ -21,9 +24,7 @@ export default function MedicineForm({ initial, submitLabel, onSubmit, onCancel,
   const [timings, setTimings] = useState(
     initial && initial.timings ? { ...initial.timings } : { morning: false, noon: false, evening: false },
   );
-  const [weeklyDay, setWeeklyDay] = useState(
-    initial && initial.weeklyDay ? initial.weeklyDay : WEEK_DAYS[new Date().getDay()],
-  );
+  const [weeklyDay, setWeeklyDay] = useState(initial && initial.weeklyDay ? initial.weeklyDay : WEEK_DAYS[new Date().getDay()]);
 
   const handleImageChange = async (e) => {
     const file = e.target.files[0];
@@ -42,10 +43,16 @@ export default function MedicineForm({ initial, submitLabel, onSubmit, onCancel,
 
   const submit = (e) => {
     e.preventDefault();
-    const stockNum = parseInt(stock, 10);
+    // 空欄の場所は 0 として扱います。ただし、どこか1か所は入力してもらいます。
+    const stockNums = Object.fromEntries(
+      LOCATIONS.map((l) => [l.key, stocks[l.key].trim() === "" ? 0 : parseInt(stocks[l.key], 10)]),
+    );
     const doseNum = parseInt(dose, 10);
     if (!name.trim()) return notify("お薬の名前を入力してください。");
-    if (isNaN(stockNum) || stockNum < 0) return notify("在庫数は0以上の数字で入力してください。");
+    if (LOCATIONS.every((l) => stocks[l.key].trim() === "")) return notify("今ある在庫数を入力してください。");
+    if (LOCATIONS.some((l) => isNaN(stockNums[l.key]) || stockNums[l.key] < 0)) {
+      return notify("在庫数は0以上の数字で入力してください。");
+    }
     if (isNaN(doseNum) || doseNum < 1) return notify("1回の使用量は1以上の数字で入力してください。");
     if (type === "daily" && !TIMINGS.some((t) => timings[t.key])) {
       return notify("服用するタイミングを1つ以上選んでください。");
@@ -53,7 +60,7 @@ export default function MedicineForm({ initial, submitLabel, onSubmit, onCancel,
     onSubmit({
       name: name.trim(),
       efficacy: efficacy.trim(),
-      stock: stockNum,
+      stocks: stockNums,
       dose: doseNum,
       unit,
       image,
@@ -142,37 +149,47 @@ export default function MedicineForm({ initial, submitLabel, onSubmit, onCancel,
           </div>
         </div>
 
+        <div>
+          <label className={LABEL_CLS}>今ある在庫数</label>
+          <div className="flex gap-4">
+            {LOCATIONS.map((l) => (
+              <div key={l.key} className="flex-1">
+                <label className="block text-xs font-bold text-gray-500 mb-1.5" htmlFor={"med-stock-" + l.key}>
+                  {l.label}
+                </label>
+                <div className="relative">
+                  <input
+                    id={"med-stock-" + l.key}
+                    type="number"
+                    inputMode="numeric"
+                    min="0"
+                    value={stocks[l.key]}
+                    onChange={(e) => setStocks((p) => ({ ...p, [l.key]: e.target.value }))}
+                    placeholder={l.key === "home" ? "例：28" : "0"}
+                    className={INPUT_CLS + " pr-16"}
+                  />
+                  <span className="absolute right-4 top-3.5 text-gray-400 font-medium text-sm">{unit}</span>
+                </div>
+              </div>
+            ))}
+          </div>
+          <p className="text-[11px] text-gray-400 font-medium mt-2 leading-relaxed">
+            実家に置いていない場合は、実家の欄は空のままで構いません。
+          </p>
+        </div>
+
         <div className="flex gap-4">
           <div className="flex-1">
-            <label className={LABEL_CLS} htmlFor="med-stock">
-              今ある在庫数
+            <label className={LABEL_CLS} htmlFor="med-unit">
+              単位
             </label>
-            <div className="relative">
-              <input
-                id="med-stock"
-                type="number"
-                inputMode="numeric"
-                value={stock}
-                onChange={(e) => setStock(e.target.value)}
-                placeholder="例：28"
-                className={INPUT_CLS + " pr-24"}
-                required
-              />
-              <span className="absolute right-2 top-3">
-                <select
-                  value={unit}
-                  onChange={(e) => setUnit(e.target.value)}
-                  aria-label="単位"
-                  className="bg-transparent border-none text-gray-600 font-medium text-base focus:outline-none"
-                >
-                  {UNITS.map((u) => (
-                    <option key={u} value={u}>
-                      {u}
-                    </option>
-                  ))}
-                </select>
-              </span>
-            </div>
+            <select id="med-unit" value={unit} onChange={(e) => setUnit(e.target.value)} className={INPUT_CLS}>
+              {UNITS.map((u) => (
+                <option key={u} value={u}>
+                  {u}
+                </option>
+              ))}
+            </select>
           </div>
           <div className="flex-1">
             <label className={LABEL_CLS} htmlFor="med-dose">

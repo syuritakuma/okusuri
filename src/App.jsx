@@ -7,16 +7,17 @@ import ConfirmDialog from "./components/ConfirmDialog.jsx";
 import LogForm from "./components/LogForm.jsx";
 import MedicineForm from "./components/MedicineForm.jsx";
 import Modal from "./components/Modal.jsx";
+import MoveSheet from "./components/MoveSheet.jsx";
 import RefillSheet from "./components/RefillSheet.jsx";
 import SettingsSheet from "./components/SettingsSheet.jsx";
 import Toast from "./components/Toast.jsx";
 import { useToast, useToday, useTyping } from "./hooks.js";
 import { IcGear, IcTrash } from "./icons.jsx";
 import { formatLongDate } from "./lib/date.js";
-import { isLowStock } from "./lib/medicine.js";
+import { isLowAt, isLowStock, locationLabel, otherLocation } from "./lib/medicine.js";
 import * as records from "./lib/records.js";
 import { computeStats, computeTodayTasks } from "./lib/schedule.js";
-import { backupFile, loadData, parseBackup, saveLogs, saveMedicines } from "./lib/storage.js";
+import { backupFile, loadData, loadLocation, parseBackup, saveLocation, saveLogs, saveMedicines } from "./lib/storage.js";
 import MedsScreen from "./screens/MedsScreen.jsx";
 import StatsScreen from "./screens/StatsScreen.jsx";
 import TodayScreen from "./screens/TodayScreen.jsx";
@@ -40,9 +41,16 @@ export default function App() {
     if (!saveLogs(logs)) notify("記録を保存できませんでした。端末の空き容量を確認してください。");
   }, [logs]);
 
+  // 今いる場所（自宅／実家）です。「飲んだ」を押したときに、この場所の在庫が減ります。
+  const [location, setLocation] = useState(loadLocation);
+  useEffect(() => {
+    saveLocation(location);
+  }, [location]);
+
   // 開いているシートや確認画面です（どれも開いていなければ null）
   const [editingMed, setEditingMed] = useState(null);
   const [refillMed, setRefillMed] = useState(null);
+  const [moveMed, setMoveMed] = useState(null);
   const [editingLog, setEditingLog] = useState(null);
   const [addingLog, setAddingLog] = useState(false);
   const [showSettings, setShowSettings] = useState(false);
@@ -73,11 +81,12 @@ export default function App() {
       records.recordDose(data, {
         medId: med.id,
         amount: med.dose,
+        location,
         timingKey,
         timingLabel,
         timestamp: new Date().toISOString(),
       }),
-      `${med.name}（${timingLabel}）を記録しました。`,
+      `${med.name}（${timingLabel}）を記録しました。${locationLabel(location)}の在庫から${med.dose}${med.unit}減らしました。`,
     );
 
   const addLogManually = (entry) => {
@@ -120,11 +129,16 @@ export default function App() {
 
   const moveMedicine = (index, dir) => apply(records.moveMedicine(data, index, dir));
 
-  const applyRefill = (amount) => {
+  const applyRefill = (amount, place) => {
     const med = refillMed;
-    if (apply(records.refill(data, med.id, amount), `${med.name}の在庫を${amount}${med.unit}増やしました。`)) {
-      setRefillMed(null);
-    }
+    const message = `${med.name}の${locationLabel(place)}の在庫を${amount}${med.unit}増やしました。`;
+    if (apply(records.refill(data, med.id, amount, place), message)) setRefillMed(null);
+  };
+
+  const applyMove = (from, amount) => {
+    const med = moveMed;
+    const message = `${med.name}を${locationLabel(from)}から${locationLabel(otherLocation(from))}へ${amount}${med.unit}移しました。`;
+    if (apply(records.moveStock(data, med.id, from, amount), message)) setMoveMed(null);
   };
 
   /* ---------- 集計 ---------- */
@@ -132,6 +146,8 @@ export default function App() {
   const todayTasks = useMemo(() => computeTodayTasks(medicines, logs, new Date()), [medicines, logs, today]);
   const stats = useMemo(() => computeStats(medicines, logs, statsRange, new Date()), [medicines, logs, statsRange, today]);
   const lowStockMeds = medicines.filter(isLowStock);
+  // 今日まだ飲んでいないお薬のうち、今いる場所の在庫が少ないものです
+  const lowHereMeds = medicines.filter((m) => isLowAt(m, location) && todayTasks.some((t) => t.med.id === m.id && !t.done));
 
   /* ---------- バックアップ ---------- */
   const exportBackup = async () => {
@@ -206,17 +222,31 @@ export default function App() {
           <p className="text-xs font-bold text-gray-400 mb-0.5">{formatLongDate(new Date())}</p>
           <h1 className="text-2xl font-extrabold text-gray-900 tracking-tight">{title}</h1>
         </div>
-        <button onClick={() => setShowSettings(true)} className="p-2 text-gray-400 active:text-gray-700 rounded-full" aria-label="設定">
+        <button
+          onClick={() => setShowSettings(true)}
+          className="p-2 text-gray-400 active:text-gray-700 rounded-full"
+          aria-label="設定"
+        >
           <IcGear size={22} />
         </button>
       </header>
 
       <main className="p-5 flex-1 main-pad">
-        {activeTab === "today" && <TodayScreen tasks={todayTasks} lowStockMeds={lowStockMeds} onTake={takeMedicine} />}
+        {activeTab === "today" && (
+          <TodayScreen
+            tasks={todayTasks}
+            lowStockMeds={lowStockMeds}
+            lowHereMeds={lowHereMeds}
+            location={location}
+            onLocationChange={setLocation}
+            onTake={takeMedicine}
+          />
+        )}
         {activeTab === "meds" && (
           <MedsScreen
             medicines={medicines}
             onRefill={setRefillMed}
+            onMoveStock={setMoveMed}
             onEdit={setEditingMed}
             onDelete={deleteMedicine}
             onMove={moveMedicine}
@@ -268,6 +298,7 @@ export default function App() {
           </p>
           <LogForm
             medicines={medicines}
+            defaultLocation={location}
             submitLabel="この内容で記録する"
             onSubmit={addLogManually}
             onCancel={() => setAddingLog(false)}
@@ -299,7 +330,13 @@ export default function App() {
         </Modal>
       )}
 
-      {refillMed && <RefillSheet med={refillMed} onApply={applyRefill} onClose={() => setRefillMed(null)} />}
+      {refillMed && (
+        <RefillSheet med={refillMed} defaultLocation={location} onApply={applyRefill} onClose={() => setRefillMed(null)} />
+      )}
+
+      {moveMed && (
+        <MoveSheet med={moveMed} defaultFrom={otherLocation(location)} onApply={applyMove} onClose={() => setMoveMed(null)} />
+      )}
 
       {showSettings && (
         <SettingsSheet

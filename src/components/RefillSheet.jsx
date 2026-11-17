@@ -1,19 +1,27 @@
 import { useState } from "react";
-import { BTN_CANCEL, BTN_PRIMARY } from "../ui.js";
+import { LOCATIONS, locationLabel, stockAt } from "../lib/medicine.js";
+import { BTN_CANCEL, BTN_PRIMARY, LABEL_CLS } from "../ui.js";
+import LocationPicker from "./LocationPicker.jsx";
 import Modal from "./Modal.jsx";
 
 // よく使う補充数をワンタップで入れられるようにしています
 const PRESETS = [7, 14, 28, 30];
 
-/* 在庫を補充する画面です */
-export default function RefillSheet({ med, onApply, onClose }) {
+/* 在庫を補充する画面です。足す場所は、最初は「今いる場所」になっています。 */
+export default function RefillSheet({ med, defaultLocation, onApply, onClose }) {
   const [amount, setAmount] = useState("");
+  const [location, setLocation] = useState(defaultLocation);
+  const counts = Object.fromEntries(LOCATIONS.map((l) => [l.key, stockAt(med, l.key)]));
   return (
     <Modal title="在庫を補充する" onClose={onClose}>
       <p className="text-sm text-gray-600 font-medium mb-5 leading-relaxed">
-        「{med.name}」を薬局などで受け取った数を入力してください。今の在庫（{med.stock}
+        「{med.name}」を薬局などで受け取った数を入力してください。選んだ場所の在庫（今は{counts[location]}
         {med.unit}）に足されます。
       </p>
+      <div className="mb-5">
+        <label className={LABEL_CLS}>どこに置きますか？</label>
+        <LocationPicker value={location} onChange={setLocation} counts={counts} unit={med.unit} label="補充する場所" />
+      </div>
       <div className="grid grid-cols-4 gap-2 mb-4">
         {PRESETS.map((n) => (
           <button
@@ -45,8 +53,8 @@ export default function RefillSheet({ med, onApply, onClose }) {
         <button onClick={onClose} className={BTN_CANCEL}>
           やめる
         </button>
-        <button onClick={() => onApply(parseInt(amount, 10))} className={BTN_PRIMARY}>
-          補充する
+        <button onClick={() => onApply(parseInt(amount, 10), location)} className={BTN_PRIMARY}>
+          {locationLabel(location)}に補充する
         </button>
       </div>
     </Modal>

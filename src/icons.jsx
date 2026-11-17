@@ -155,6 +155,12 @@ export const IcSort = (p) => (
     <path d="m17 14 3 3 3-3M20 17V7" />
   </Svg>
 );
+export const IcMove = (p) => (
+  <Svg {...p}>
+    <path d="M4 8h15m-4-4 4 4-4 4" />
+    <path d="M20 16H5m4-4-4 4 4 4" />
+  </Svg>
+);
 export const IcShare = (p) => (
   <Svg {...p}>
     <path d="M12 16V3" />

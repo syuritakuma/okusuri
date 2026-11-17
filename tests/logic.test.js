@@ -224,3 +224,26 @@ test("version 2 のバックアップは自宅の在庫として読み込む", (
   const text = JSON.stringify({ app: "okusuri", version: 2, medicines: [daily], logs: [] });
   assert.deepEqual(parseBackup(text).medicines[0].stocks, { home: 10, parents: 0 });
 });
+
+/* ---------- 間違えて押したときの取り消し ---------- */
+test("飲み終えた項目には、取り消しに使う記録が付く", () => {
+  const morning = log(1, "morning", at(0, 8));
+  const tasks = computeTodayTasks([daily], [morning, log(1, "evening", at(1, 20))], NOW);
+  assert.equal(tasks[0].log, morning);
+  assert.equal(tasks[1].log, undefined); // 昨日の夜の記録は、今日の夜には数えない
+
+  const shot = log(2, "weekly", at(0, 9));
+  const weeklyTasks = computeTodayTasks([{ ...weekly, weeklyDay: "水" }], [shot], NOW);
+  assert.equal(weeklyTasks[0].log, shot);
+});
+
+test("記録した直後に、その記録で取り消すと元どおりになる", () => {
+  const before = { medicines: [split], logs: [] };
+  const r = records.recordDose(before, take("parents"));
+  assert.equal(r.data.logs[0], r.log);
+  const undone = records.deleteLog(r.data, r.log.id).data;
+  assert.deepEqual(undone.medicines[0].stocks, split.stocks);
+  assert.equal(undone.logs.length, 0);
+  // 今日の一覧も「まだ飲んでいない」に戻る
+  assert.equal(computeTodayTasks(undone.medicines, undone.logs, NOW)[0].done, false);
+});

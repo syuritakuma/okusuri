@@ -55,15 +55,30 @@ export function useTyping() {
   return typing;
 }
 
-// 画面の上に少しの間だけ出るお知らせ（トースト）の中身と、出すための関数を返します
-export function useToast(duration = 2800) {
-  const [message, setMessage] = useState(null);
+/* 画面の上に少しの間だけ出るお知らせ（トースト）の中身と、出すための関数を返します。
+   notify(文章, { label: "取り消す", onClick }) のようにボタンを付けると、押す時間があるよう長めに表示します。
+   ボタンを押すとお知らせは消えます。 */
+export function useToast(duration = 2800, durationWithAction = 6000) {
+  const [toast, setToast] = useState(null);
   const timer = useRef(null);
-  const notify = (text) => {
-    setMessage(text);
+  const close = () => {
     clearTimeout(timer.current);
-    timer.current = setTimeout(() => setMessage(null), duration);
+    setToast(null);
+  };
+  const notify = (text, action) => {
+    clearTimeout(timer.current);
+    setToast({
+      message: text,
+      action: action && {
+        label: action.label,
+        onClick: () => {
+          close();
+          action.onClick();
+        },
+      },
+    });
+    timer.current = setTimeout(() => setToast(null), action ? durationWithAction : duration);
   };
   useEffect(() => () => clearTimeout(timer.current), []);
-  return [message, notify];
+  return [toast, notify];
 }

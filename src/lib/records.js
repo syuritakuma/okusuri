@@ -22,7 +22,8 @@ const changeStock = (medicines, medId, location, diff) =>
 
 /* 服用を1件記録して、飲んだ場所の在庫をその分だけ減らします。
    entry には medId, amount, location, timingKey, timingLabel, timestamp を入れます。
-   あとから追加した記録には manual: true を付けます。 */
+   あとから追加した記録には manual: true を付けます。
+   作った記録は log として一緒に返します（すぐに取り消せるようにするためです）。 */
 export function recordDose(data, entry) {
   const med = data.medicines.find((m) => m.id === entry.medId);
   if (!med) return { error: "お薬を選んでください。" };
@@ -34,6 +35,7 @@ export function recordDose(data, entry) {
       medicines: changeStock(data.medicines, med.id, location, -entry.amount),
       logs: sortLogs([log, ...data.logs]),
     },
+    log,
   };
 }
 

@@ -4,18 +4,20 @@ import { TIMINGS, dailyTimingCount, weeklyLabel } from "./medicine.js";
 
 const TIMING_ORDER = { morning: 0, noon: 1, evening: 2, weekly: 3 };
 
-const isTakenOn = (logs, medId, timingKey, day) =>
-  logs.some((l) => l.medId === medId && l.timingKey === timingKey && sameDay(new Date(l.timestamp), day));
+// その日にそのタイミングで飲んだ記録を返します（なければ undefined）
+const takenLogOn = (logs, medId, timingKey, day) =>
+  logs.find((l) => l.medId === medId && l.timingKey === timingKey && sameDay(new Date(l.timestamp), day));
 
-// 週1回のお薬について、直近の予定日（今日を含む）以降に記録があるかを調べます
-const isTakenThisCycle = (logs, med, now) => {
+// 週1回のお薬について、直近の予定日（今日を含む）以降の記録を返します（なければ undefined）
+const takenLogThisCycle = (logs, med, now) => {
   const since = lastOccurrenceOfWeekday(med.weeklyDay, now);
-  return logs.some((l) => l.medId === med.id && new Date(l.timestamp) >= since);
+  return logs.find((l) => l.medId === med.id && new Date(l.timestamp) >= since);
 };
 
 /* 今日やることの一覧を作ります。
    週1回のお薬は、予定日の当日に加えて、予定日を過ぎてもまだ使っていない場合にも
-   「未実施」として出し続けます。 */
+   「未実施」として出し続けます。
+   飲み終えた項目には、その記録（log）も付けます。間違えて押したときの取り消しに使います。 */
 export function computeTodayTasks(medicines, logs, now = new Date()) {
   const list = [];
   const weekday = WEEK_DAYS[new Date(now).getDay()];
@@ -23,18 +25,21 @@ export function computeTodayTasks(medicines, logs, now = new Date()) {
     if (med.type === "daily") {
       TIMINGS.forEach(({ key, label }) => {
         if (med.timings && med.timings[key]) {
-          list.push({ med, timingKey: key, timingLabel: label, done: isTakenOn(logs, med.id, key, now) });
+          const log = takenLogOn(logs, med.id, key, now);
+          list.push({ med, timingKey: key, timingLabel: label, done: !!log, log });
         }
       });
     } else {
       const isTargetDay = weekday === med.weeklyDay;
-      const done = isTakenThisCycle(logs, med, now);
+      const log = takenLogThisCycle(logs, med, now);
+      const done = !!log;
       if (isTargetDay || !done) {
         list.push({
           med,
           timingKey: "weekly",
           timingLabel: weeklyLabel(med),
           done,
+          log,
           overdue: !done && !isTargetDay,
         });
       }

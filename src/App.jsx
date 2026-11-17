@@ -1,7 +1,7 @@
 /* お薬管理アプリの本体です。
    データ（お薬と服用記録）をここで持ち、各タブの画面と、下から出てくるシートに渡します。
    データを書き換える処理そのものは lib/records.js にあります。 */
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import BottomNav, { TABS } from "./components/BottomNav.jsx";
 import ConfirmDialog from "./components/ConfirmDialog.jsx";
 import LogForm from "./components/LogForm.jsx";
@@ -31,6 +31,9 @@ export default function App() {
 
   const [data, setData] = useState(loadData);
   const { medicines, logs } = data;
+  // トーストの「取り消す」ボタンは少しあとに押されるため、その時点の最新のデータを参照できるようにしておきます
+  const dataRef = useRef(data);
+  dataRef.current = data;
 
   useEffect(() => {
     if (!saveMedicines(medicines)) {
@@ -76,18 +79,50 @@ export default function App() {
   };
 
   /* ---------- 服用の記録 ---------- */
-  const takeMedicine = (med, timingKey, timingLabel) =>
-    apply(
-      records.recordDose(data, {
-        medId: med.id,
-        amount: med.dose,
-        location,
-        timingKey,
-        timingLabel,
-        timestamp: new Date().toISOString(),
-      }),
+  // 「飲んだ」を押したときの記録です。間違えて押したときのために、お知らせに「取り消す」ボタンを付けます。
+  const takeMedicine = (med, timingKey, timingLabel) => {
+    const result = records.recordDose(data, {
+      medId: med.id,
+      amount: med.dose,
+      location,
+      timingKey,
+      timingLabel,
+      timestamp: new Date().toISOString(),
+    });
+    if (result.error) {
+      notify(result.error);
+      return;
+    }
+    setData(result.data);
+    notify(
       `${med.name}（${timingLabel}）を記録しました。${locationLabel(location)}の在庫から${med.dose}${med.unit}減らしました。`,
+      {
+        label: "取り消す",
+        onClick: () => undoLog(result.log.id),
+      },
     );
+  };
+
+  // 記録を取り消して、飲んだ場所の在庫を元に戻します
+  const undoLog = (logId) => {
+    const current = dataRef.current;
+    if (!current.logs.some((l) => l.id === logId)) {
+      notify("この記録はすでに取り消されています。");
+      return;
+    }
+    apply(records.deleteLog(current, logId), "記録を取り消して、在庫を元に戻しました。");
+  };
+
+  // 「今日」の一覧で「済み」を押したときに、確認してから取り消します
+  const confirmUndoTask = (task) => {
+    const { med, timingLabel, log } = task;
+    setConfirmState({
+      title: "この記録を取り消しますか？",
+      message: `${med.name}（${timingLabel}）の記録を取り消して、${locationLabel(records.logLocation(log))}の在庫に${log.amount}${log.unit || med.unit}戻します。`,
+      okLabel: "取り消す",
+      onOk: () => undoLog(log.id),
+    });
+  };
 
   const addLogManually = (entry) => {
     if (apply(records.recordDose(data, { ...entry, manual: true }), "服用の記録を追加しました。")) setAddingLog(false);
@@ -98,7 +133,7 @@ export default function App() {
   };
 
   const deleteLog = (logId) => {
-    apply(records.deleteLog(data, logId), "記録を取り消して、在庫を元に戻しました。");
+    undoLog(logId);
     setEditingLog(null);
   };
 
@@ -215,7 +250,7 @@ export default function App() {
 
   return (
     <div className="w-full app-min-h bg-gray-50 relative font-sans text-gray-800 flex flex-col">
-      <Toast message={toast} />
+      <Toast toast={toast} />
 
       <header className="bg-white/95 backdrop-blur-md px-5 pb-4 shadow-sm sticky top-0 z-30 flex items-end justify-between safe-top">
         <div>
@@ -240,6 +275,7 @@ export default function App() {
             location={location}
             onLocationChange={setLocation}
             onTake={takeMedicine}
+            onUndo={confirmUndoTask}
           />
         )}
         {activeTab === "meds" && (

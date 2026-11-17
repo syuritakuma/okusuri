@@ -5,8 +5,9 @@ import { estimateDaysLeft, locationLabel, otherLocation, stockAt } from "../lib/
 import { CARD, EMPTY_BOX, TIMING_ICONS, TIMING_STYLE } from "../ui.js";
 
 /* 「今日」タブ：今日飲むお薬の一覧と、進み具合・在庫の警告を表示します。
-   「飲んだ」を押すと、上で選んでいる「今いる場所」の在庫が減ります。 */
-export default function TodayScreen({ tasks, lowStockMeds, lowHereMeds, location, onLocationChange, onTake }) {
+   「飲んだ」を押すと、上で選んでいる「今いる場所」の在庫が減ります。
+   飲み終えた項目の「済み」を押すと、その記録を取り消せます（間違えて押したとき用）。 */
+export default function TodayScreen({ tasks, lowStockMeds, lowHereMeds, location, onLocationChange, onTake, onUndo }) {
   const done = tasks.filter((t) => t.done).length;
   const total = tasks.length;
   const rate = total > 0 ? Math.round((done / total) * 100) : 0;
@@ -76,7 +77,7 @@ export default function TodayScreen({ tasks, lowStockMeds, lowHereMeds, location
       ) : (
         <div className="space-y-3">
           {tasks.map((task) => (
-            <TaskRow key={task.med.id + "-" + task.timingKey} task={task} location={location} onTake={onTake} />
+            <TaskRow key={task.med.id + "-" + task.timingKey} task={task} location={location} onTake={onTake} onUndo={onUndo} />
           ))}
         </div>
       )}
@@ -84,7 +85,7 @@ export default function TodayScreen({ tasks, lowStockMeds, lowHereMeds, location
   );
 }
 
-function TaskRow({ task, location, onTake }) {
+function TaskRow({ task, location, onTake, onUndo }) {
   const { med, timingKey, timingLabel, done, overdue } = task;
   const Icon = TIMING_ICONS[timingKey] || IcCalendar;
   const style = TIMING_STYLE[timingKey] || TIMING_STYLE.weekly;
@@ -111,17 +112,29 @@ function TaskRow({ task, location, onTake }) {
           {med.unit}
         </p>
       </div>
-      <button
-        onClick={() => onTake(med, timingKey, timingLabel)}
-        disabled={done || notEnough}
-        className={
-          "flex-shrink-0 w-[86px] py-3 rounded-2xl flex flex-col items-center justify-center gap-1 text-white shadow-md " +
-          (done ? "bg-green-100 text-green-700 shadow-none" : notEnough ? "bg-gray-200 text-gray-400 shadow-none" : style.on)
-        }
-      >
-        {done ? <IcCheck size={20} /> : <Icon size={20} />}
-        <span className="text-[11px] font-bold">{done ? "済み" : notEnough ? "在庫なし" : "飲んだ"}</span>
-      </button>
+      {done ? (
+        <button
+          onClick={() => onUndo(task)}
+          aria-label={`${med.name}（${timingLabel}）の記録を取り消す`}
+          className="flex-shrink-0 w-[86px] py-2.5 rounded-2xl flex flex-col items-center justify-center gap-0.5 bg-green-100 active:bg-green-200 text-green-700"
+        >
+          <IcCheck size={20} />
+          <span className="text-[11px] font-bold">済み</span>
+          <span className="text-[9px] font-bold text-green-600/80">タップで取消</span>
+        </button>
+      ) : (
+        <button
+          onClick={() => onTake(med, timingKey, timingLabel)}
+          disabled={notEnough}
+          className={
+            "flex-shrink-0 w-[86px] py-3 rounded-2xl flex flex-col items-center justify-center gap-1 text-white shadow-md " +
+            (notEnough ? "bg-gray-200 text-gray-400 shadow-none" : style.on)
+          }
+        >
+          <Icon size={20} />
+          <span className="text-[11px] font-bold">{notEnough ? "在庫なし" : "飲んだ"}</span>
+        </button>
+      )}
     </div>
   );
 }

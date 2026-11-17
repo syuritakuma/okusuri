@@ -1,11 +1,11 @@
 import { useState } from "react";
 import MedThumb from "../components/MedThumb.jsx";
-import { IcAlert, IcDown, IcEdit, IcInfo, IcRefill, IcSort, IcTrash, IcUp } from "../icons.jsx";
-import { estimateDaysLeft, isLowStock, scheduleLabel } from "../lib/medicine.js";
+import { IcAlert, IcDown, IcEdit, IcInfo, IcMove, IcRefill, IcSort, IcTrash, IcUp } from "../icons.jsx";
+import { LOCATIONS, daysLeftAt, estimateDaysLeft, isLowAt, isLowStock, scheduleLabel, stockAt } from "../lib/medicine.js";
 import { CARD, EMPTY_BOX } from "../ui.js";
 
 /* 「お薬」タブ：登録したお薬と在庫の一覧です。並び順の入れ替えもここで行います。 */
-export default function MedsScreen({ medicines, onRefill, onEdit, onDelete, onMove, onGoAdd }) {
+export default function MedsScreen({ medicines, onRefill, onMoveStock, onEdit, onDelete, onMove, onGoAdd }) {
   const [sortMode, setSortMode] = useState(false);
 
   if (medicines.length === 0) {
@@ -46,7 +46,7 @@ export default function MedsScreen({ medicines, onRefill, onEdit, onDelete, onMo
         </div>
       ) : (
         medicines.map((med) => (
-          <MedCard key={med.id} med={med} onRefill={onRefill} onEdit={onEdit} onDelete={onDelete} />
+          <MedCard key={med.id} med={med} onRefill={onRefill} onMoveStock={onMoveStock} onEdit={onEdit} onDelete={onDelete} />
         ))
       )}
     </div>
@@ -73,40 +73,41 @@ function SortRow({ med, index, last, onMove }) {
   );
 }
 
-function MedCard({ med, onRefill, onEdit, onDelete }) {
+function MedCard({ med, onRefill, onMoveStock, onEdit, onDelete }) {
   const daysLeft = estimateDaysLeft(med);
   const low = isLowStock(med);
   return (
     <div className={CARD + " p-6 flex flex-col gap-4"}>
-      <div className="flex justify-between items-start gap-3">
-        <div className="flex gap-4 min-w-0">
-          <MedThumb med={med} />
-          <div className="min-w-0">
-            <span
-              className={
-                "inline-block text-[10px] px-2 py-0.5 rounded-full font-bold " +
-                (med.type === "weekly" ? "bg-purple-100 text-purple-700" : "bg-blue-100 text-blue-700")
-              }
-            >
-              {scheduleLabel(med)}
-            </span>
-            <h2 className="text-lg font-bold text-gray-900 leading-tight mt-1.5 break-words">{med.name}</h2>
-            <p className="text-sm text-gray-500 mt-1 font-medium">
-              1回 {med.dose}
-              {med.unit}
-            </p>
-          </div>
-        </div>
-        <div className="text-right flex-shrink-0">
-          <p className="text-[10px] font-bold text-gray-400 mb-0.5 tracking-wider">在庫</p>
-          <p className={"text-3xl font-extrabold leading-none " + (low ? "text-red-500" : "text-gray-900")}>
-            {med.stock}
-            <span className="text-xs font-semibold text-gray-500 ml-1">{med.unit}</span>
+      <div className="flex gap-4 min-w-0">
+        <MedThumb med={med} />
+        <div className="min-w-0">
+          <span
+            className={
+              "inline-block text-[10px] px-2 py-0.5 rounded-full font-bold " +
+              (med.type === "weekly" ? "bg-purple-100 text-purple-700" : "bg-blue-100 text-blue-700")
+            }
+          >
+            {scheduleLabel(med)}
+          </span>
+          <h2 className="text-lg font-bold text-gray-900 leading-tight mt-1.5 break-words">{med.name}</h2>
+          <p className="text-sm text-gray-500 mt-1 font-medium">
+            1回 {med.dose}
+            {med.unit}
           </p>
-          {daysLeft !== null && (
-            <p className={"text-[11px] font-bold mt-1 " + (low ? "text-red-500" : "text-gray-400")}>あと約{daysLeft}日分</p>
-          )}
         </div>
+      </div>
+
+      <div>
+        <div className="grid grid-cols-2 gap-2">
+          {LOCATIONS.map((l) => (
+            <StockBox key={l.key} med={med} location={l.key} label={l.label} />
+          ))}
+        </div>
+        <p className={"text-xs font-bold mt-2 text-right " + (low ? "text-red-500" : "text-gray-400")}>
+          合計 {med.stock}
+          {med.unit}
+          {daysLeft !== null && `（あと約${daysLeft}日分）`}
+        </p>
       </div>
 
       {med.efficacy && (
@@ -124,6 +125,12 @@ function MedCard({ med, onRefill, onEdit, onDelete }) {
           <IcRefill size={17} /> 補充
         </button>
         <button
+          onClick={() => onMoveStock(med)}
+          className="flex-1 py-3.5 rounded-2xl bg-white border border-gray-200 text-gray-700 font-bold text-sm flex items-center justify-center gap-1.5 active:bg-gray-100"
+        >
+          <IcMove size={16} /> 移動
+        </button>
+        <button
           onClick={() => onEdit(med)}
           className="flex-1 py-3.5 rounded-2xl bg-white border border-gray-200 text-gray-700 font-bold text-sm flex items-center justify-center gap-1.5 active:bg-gray-100"
         >
@@ -137,6 +144,22 @@ function MedCard({ med, onRefill, onEdit, onDelete }) {
           <IcTrash size={18} />
         </button>
       </div>
+    </div>
+  );
+}
+
+// 1つの場所の在庫数と、その分だけであと何日もつかを表示します
+function StockBox({ med, location, label }) {
+  const days = daysLeftAt(med, location);
+  const low = isLowAt(med, location);
+  return (
+    <div className={"rounded-2xl p-3 " + (low ? "bg-red-50" : "bg-gray-50")}>
+      <p className="text-[11px] font-bold text-gray-500">{label}</p>
+      <p className={"text-2xl font-extrabold leading-tight " + (low ? "text-red-500" : "text-gray-900")}>
+        {stockAt(med, location)}
+        <span className="text-xs font-semibold text-gray-500 ml-1">{med.unit}</span>
+      </p>
+      {days !== null && <p className={"text-[11px] font-bold " + (low ? "text-red-500" : "text-gray-400")}>あと約{days}日分</p>}
     </div>
   );
 }

@@ -1,12 +1,15 @@
 import { useState } from "react";
 import { addDays, toLocalInput } from "../lib/date.js";
-import { timingOptionsFor } from "../lib/medicine.js";
+import { LOCATIONS, stockAt, timingOptionsFor } from "../lib/medicine.js";
+import { logLocation } from "../lib/records.js";
+import LocationPicker from "./LocationPicker.jsx";
 import { BTN_CANCEL, BTN_PRIMARY, INPUT_CLS, LABEL_CLS, TIMING_STYLE } from "../ui.js";
 
 const SMALL_BTN = "flex-1 py-2.5 rounded-xl bg-white border border-gray-200 text-gray-600 font-bold text-xs";
 
-/* 服用記録の入力フォームです。「あとから追加」と「記録の修正」で共用します。 */
-export default function LogForm({ medicines, initial, submitLabel, onSubmit, onCancel, notify }) {
+/* 服用記録の入力フォームです。「あとから追加」と「記録の修正」で共用します。
+   新しく追加するときの「飲んだ場所」は、defaultLocation（今いる場所）から始まります。 */
+export default function LogForm({ medicines, initial, defaultLocation, submitLabel, onSubmit, onCancel, notify }) {
   const firstMed = medicines[0];
   const [medId, setMedId] = useState(initial ? initial.medId : firstMed ? firstMed.id : null);
   const med = medicines.find((m) => m.id === medId);
@@ -16,6 +19,7 @@ export default function LogForm({ medicines, initial, submitLabel, onSubmit, onC
   );
   const [when, setWhen] = useState(toLocalInput(initial ? initial.timestamp : new Date()));
   const [amount, setAmount] = useState(String(initial ? initial.amount : med ? med.dose : 1));
+  const [location, setLocation] = useState(initial ? logLocation(initial) : defaultLocation);
 
   // 薬を変えたときは、その薬で選べるタイミングと使用量に合わせ直します
   const changeMed = (id) => {
@@ -46,6 +50,7 @@ export default function LogForm({ medicines, initial, submitLabel, onSubmit, onC
       medName: target.name,
       unit: target.unit,
       amount: amountNum,
+      location,
       timingKey: opt.key,
       timingLabel: opt.label,
       timestamp: ts.toISOString(),
@@ -94,6 +99,17 @@ export default function LogForm({ medicines, initial, submitLabel, onSubmit, onC
       </div>
 
       <div>
+        <label className={LABEL_CLS}>飲んだ場所</label>
+        <LocationPicker
+          value={location}
+          onChange={setLocation}
+          label="飲んだ場所"
+          counts={med ? Object.fromEntries(LOCATIONS.map((l) => [l.key, stockAt(med, l.key)])) : undefined}
+          unit={med ? med.unit : ""}
+        />
+      </div>
+
+      <div>
         <label className={LABEL_CLS} htmlFor="log-when">
           飲んだ日時
         </label>
@@ -128,7 +144,7 @@ export default function LogForm({ medicines, initial, submitLabel, onSubmit, onC
           <span className="absolute right-4 top-3.5 text-gray-400 font-medium text-sm">{med ? med.unit : ""}</span>
         </div>
         <p className="text-[11px] text-gray-400 font-medium mt-2 leading-relaxed">
-          記録を保存すると、その分だけ在庫が自動で減ります。使用量を直した場合は、差の分だけ在庫が調整されます。
+          記録を保存すると、飲んだ場所の在庫がその分だけ自動で減ります。使用量や場所を直した場合は、差の分だけ在庫が調整されます。
         </p>
       </div>
 

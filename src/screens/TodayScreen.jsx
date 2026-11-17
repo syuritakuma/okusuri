@@ -1,10 +1,12 @@
+import LocationPicker from "../components/LocationPicker.jsx";
 import MedThumb from "../components/MedThumb.jsx";
 import { IcAlert, IcCalendar, IcCheck } from "../icons.jsx";
-import { estimateDaysLeft } from "../lib/medicine.js";
+import { estimateDaysLeft, locationLabel, otherLocation, stockAt } from "../lib/medicine.js";
 import { CARD, EMPTY_BOX, TIMING_ICONS, TIMING_STYLE } from "../ui.js";
 
-/* 「今日」タブ：今日飲むお薬の一覧と、進み具合・在庫の警告を表示します */
-export default function TodayScreen({ tasks, lowStockMeds, onTake }) {
+/* 「今日」タブ：今日飲むお薬の一覧と、進み具合・在庫の警告を表示します。
+   「飲んだ」を押すと、上で選んでいる「今いる場所」の在庫が減ります。 */
+export default function TodayScreen({ tasks, lowStockMeds, lowHereMeds, location, onLocationChange, onTake }) {
   const done = tasks.filter((t) => t.done).length;
   const total = tasks.length;
   const rate = total > 0 ? Math.round((done / total) * 100) : 0;
@@ -12,16 +14,18 @@ export default function TodayScreen({ tasks, lowStockMeds, onTake }) {
 
   return (
     <div className="space-y-5">
+      <div className={CARD + " p-5"}>
+        <p className="text-xs font-bold text-gray-400 tracking-wider mb-3">今いる場所</p>
+        <LocationPicker value={location} onChange={onLocationChange} label="今いる場所" />
+      </div>
+
       <div className={CARD + " p-6"}>
         <div className="flex items-end justify-between mb-3">
           <div>
             <p className="text-xs font-bold text-gray-400 tracking-wider">今日の進み具合</p>
             <p className="text-3xl font-extrabold text-gray-900 mt-1">
               {done}
-              <span className="text-base font-bold text-gray-400">
-                {" "}
-                / {total} 回
-              </span>
+              <span className="text-base font-bold text-gray-400"> / {total} 回</span>
             </p>
           </div>
           <p className={"text-4xl font-extrabold " + (complete ? "text-green-500" : "text-blue-600")}>
@@ -51,6 +55,19 @@ export default function TodayScreen({ tasks, lowStockMeds, onTake }) {
         </div>
       )}
 
+      {lowHereMeds.length > 0 && (
+        <div className="bg-amber-50 border border-amber-100 p-5 rounded-3xl flex items-start gap-3">
+          <IcAlert size={20} className="text-amber-500 flex-shrink-0 mt-0.5" />
+          <div>
+            <p className="text-sm font-bold text-amber-800 mb-1">{locationLabel(location)}にある分が少なくなっています</p>
+            <p className="text-xs text-amber-700 leading-relaxed font-medium">
+              {lowHereMeds.map((m) => `${m.name}（残り${stockAt(m, location)}${m.unit}）`).join("、")}。
+              {locationLabel(otherLocation(location))}から持ってきたら、「お薬」タブの「移動」で記録してください。
+            </p>
+          </div>
+        </div>
+      )}
+
       {tasks.length === 0 ? (
         <div className={EMPTY_BOX}>
           <IcCalendar size={44} className="mx-auto mb-4 opacity-40" />
@@ -59,7 +76,7 @@ export default function TodayScreen({ tasks, lowStockMeds, onTake }) {
       ) : (
         <div className="space-y-3">
           {tasks.map((task) => (
-            <TaskRow key={task.med.id + "-" + task.timingKey} task={task} onTake={onTake} />
+            <TaskRow key={task.med.id + "-" + task.timingKey} task={task} location={location} onTake={onTake} />
           ))}
         </div>
       )}
@@ -67,11 +84,12 @@ export default function TodayScreen({ tasks, lowStockMeds, onTake }) {
   );
 }
 
-function TaskRow({ task, onTake }) {
+function TaskRow({ task, location, onTake }) {
   const { med, timingKey, timingLabel, done, overdue } = task;
   const Icon = TIMING_ICONS[timingKey] || IcCalendar;
   const style = TIMING_STYLE[timingKey] || TIMING_STYLE.weekly;
-  const notEnough = med.stock < med.dose;
+  const here = stockAt(med, location);
+  const notEnough = here < med.dose;
 
   return (
     <div
@@ -89,7 +107,7 @@ function TaskRow({ task, onTake }) {
         <p className="font-bold text-gray-900 truncate">{med.name}</p>
         <p className="text-xs text-gray-500 font-medium mt-0.5">
           1回 {med.dose}
-          {med.unit} ／ 残り {med.stock}
+          {med.unit} ／ {locationLabel(location)}の残り {here}
           {med.unit}
         </p>
       </div>

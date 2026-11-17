@@ -1,5 +1,7 @@
 import { IcCheck, IcClip, IcEdit, IcFire, IcPlus } from "../icons.jsx";
 import { formatDateTime } from "../lib/date.js";
+import { locationLabel } from "../lib/medicine.js";
+import { logLocation } from "../lib/records.js";
 import { CARD } from "../ui.js";
 
 // 履歴が長くなりすぎると画面が重くなるため、新しいものから順にこの件数まで表示します
@@ -110,6 +112,9 @@ export default function StatsScreen({ stats, range, onRangeChange, logs, onAddLo
                     <div className="flex items-center gap-2 mb-1">
                       <span className="bg-gray-100 text-gray-600 text-[10px] px-2 py-0.5 rounded-full font-bold flex-shrink-0">
                         {log.timingLabel}
+                      </span>
+                      <span className="bg-teal-50 text-teal-700 text-[10px] px-2 py-0.5 rounded-full font-bold flex-shrink-0">
+                        {locationLabel(logLocation(log))}
                       </span>
                       {log.manual && (
                         <span className="bg-blue-50 text-blue-600 text-[10px] px-2 py-0.5 rounded-full font-bold flex-shrink-0">

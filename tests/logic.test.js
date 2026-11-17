@@ -2,7 +2,7 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
 import { addDays, lastOccurrenceOfWeekday, startOfDay } from "../src/lib/date.js";
-import { estimateDaysLeft, isLowStock, scheduleLabel } from "../src/lib/medicine.js";
+import { daysLeftAt, estimateDaysLeft, isLowAt, isLowStock, normalizeMedicine, scheduleLabel, stockAt } from "../src/lib/medicine.js";
 import * as records from "../src/lib/records.js";
 import { computeStats, computeTodayTasks } from "../src/lib/schedule.js";
 import { backupFile, parseBackup } from "../src/lib/storage.js";
@@ -149,4 +149,78 @@ test("バックアップは書き出した内容をそのまま読み戻せる",
 
   assert.equal(parseBackup("{}"), null);
   assert.equal(parseBackup("壊れたファイル"), null);
+});
+
+/* ---------- 自宅と実家の在庫 ---------- */
+const split = { ...daily, stocks: { home: 6, parents: 2 }, stock: 8 };
+const take = (location, amount = 1) => ({ medId: 1, amount, location, timingKey: "morning", timingLabel: "朝", timestamp: at(0) });
+
+test("古い形式のお薬は、在庫をすべて自宅の分として読み込む", () => {
+  const med = normalizeMedicine(daily);
+  assert.deepEqual(med.stocks, { home: 10, parents: 0 });
+  assert.equal(med.stock, 10);
+  assert.equal(stockAt(daily, "parents"), 0);
+});
+
+test("飲んだ場所の在庫だけが減り、記録に場所が残る", () => {
+  const r = records.recordDose({ medicines: [split], logs: [] }, take("parents"));
+  assert.deepEqual(r.data.medicines[0].stocks, { home: 6, parents: 1 });
+  assert.equal(r.data.medicines[0].stock, 7);
+  assert.equal(r.data.logs[0].location, "parents");
+
+  // 取り消すと、飲んだ場所に戻る
+  const back = records.deleteLog(r.data, r.data.logs[0].id);
+  assert.deepEqual(back.data.medicines[0].stocks, { home: 6, parents: 2 });
+});
+
+test("その場所に在庫がなければ、もう一方にあっても記録できない", () => {
+  const r = records.recordDose({ medicines: [split], logs: [] }, take("parents", 3));
+  assert.match(r.error, /実家の在庫が足りません/);
+});
+
+test("場所を直すと、元の場所に戻して新しい場所から引く", () => {
+  const first = records.recordDose({ medicines: [split], logs: [] }, take("home")).data;
+  const moved = records.updateLog(first, first.logs[0].id, { medId: 1, amount: 1, location: "parents" }).data;
+  assert.deepEqual(moved.medicines[0].stocks, { home: 6, parents: 1 });
+  assert.equal(moved.logs[0].location, "parents");
+});
+
+test("場所の記録がない古い履歴は、自宅で飲んだものとして扱う", () => {
+  const old = { ...log(1, "morning", at(1)), amount: 2 };
+  const r = records.deleteLog({ medicines: [split], logs: [old] }, old.id);
+  assert.deepEqual(r.data.medicines[0].stocks, { home: 8, parents: 2 });
+});
+
+test("補充は指定した場所に足し、移動は合計を変えずに移す", () => {
+  const data = { medicines: [split], logs: [] };
+  assert.deepEqual(records.refill(data, 1, 5, "parents").data.medicines[0].stocks, { home: 6, parents: 7 });
+
+  const m = records.moveStock(data, 1, "home", 4).data.medicines[0];
+  assert.deepEqual(m.stocks, { home: 2, parents: 6 });
+  assert.equal(m.stock, 8);
+
+  assert.match(records.moveStock(data, 1, "parents", 3).error, /実家には2錠しかありません/);
+  assert.ok(records.moveStock(data, 1, "home", 0).error);
+});
+
+test("登録と編集で場所ごとの在庫を設定できる", () => {
+  const fields = { name: "新しい薬", dose: 1, unit: "錠", type: "daily", timings: { morning: true }, stocks: { home: 3, parents: 5 } };
+  const added = records.addMedicine({ medicines: [], logs: [] }, fields, NOW).data.medicines[0];
+  assert.deepEqual(added.stocks, { home: 3, parents: 5 });
+  assert.equal(added.stock, 8);
+
+  const edited = records.updateMedicine({ medicines: [added], logs: [] }, added.id, { ...fields, stocks: { home: 1, parents: 0 } }).data.medicines[0];
+  assert.equal(edited.stock, 1);
+});
+
+test("場所ごとの残り日数と、少なくなったときの判定", () => {
+  assert.equal(daysLeftAt(split, "home"), 3); // 1日2錠で6錠
+  assert.equal(daysLeftAt(split, "parents"), 1);
+  assert.equal(isLowAt(split, "home"), false);
+  assert.equal(isLowAt(split, "parents"), true);
+});
+
+test("version 2 のバックアップは自宅の在庫として読み込む", () => {
+  const text = JSON.stringify({ app: "okusuri", version: 2, medicines: [daily], logs: [] });
+  assert.deepEqual(parseBackup(text).medicines[0].stocks, { home: 10, parents: 0 });
 });

@@ -1,27 +1,46 @@
 import { useState } from "react";
+import AppointmentCard from "../components/AppointmentCard.jsx";
 import MedThumb from "../components/MedThumb.jsx";
 import { IcAlert, IcDown, IcEdit, IcInfo, IcMove, IcRefill, IcSort, IcTrash, IcUp } from "../icons.jsx";
 import { LOCATIONS, daysLeftAt, estimateDaysLeft, isLowAt, isLowStock, scheduleLabel, stockAt } from "../lib/medicine.js";
 import { CARD, EMPTY_BOX } from "../ui.js";
 
-/* 「お薬」タブ：登録したお薬と在庫の一覧です。並び順の入れ替えもここで行います。 */
-export default function MedsScreen({ medicines, onRefill, onMoveStock, onEdit, onDelete, onMove, onGoAdd }) {
+/* 「お薬」タブ：登録したお薬と在庫の一覧です。並び順の入れ替えもここで行います。
+   いちばん上には、次回の通院日までの日数と、通院日までに足りなくなりそうなお薬を表示します
+   （カードを押すと onEditAppointment で通院日を登録・編集します）。 */
+export default function MedsScreen({
+  medicines,
+  onRefill,
+  onMoveStock,
+  onEdit,
+  onDelete,
+  onMove,
+  onGoAdd,
+  appointment,
+  shortMeds,
+  onEditAppointment,
+}) {
   const [sortMode, setSortMode] = useState(false);
+  const appointmentCard = <AppointmentCard appointment={appointment} shortMeds={shortMeds} onEdit={onEditAppointment} />;
 
   if (medicines.length === 0) {
     return (
-      <div className={EMPTY_BOX}>
-        <IcAlert size={44} className="mx-auto mb-4 opacity-40" />
-        <p className="font-medium mb-4">まだお薬が登録されていません。</p>
-        <button onClick={onGoAdd} className="text-sm font-bold text-blue-600 underline">
-          お薬を登録する
-        </button>
+      <div className="space-y-5">
+        {appointmentCard}
+        <div className={EMPTY_BOX}>
+          <IcAlert size={44} className="mx-auto mb-4 opacity-40" />
+          <p className="font-medium mb-4">まだお薬が登録されていません。</p>
+          <button onClick={onGoAdd} className="text-sm font-bold text-blue-600 underline">
+            お薬を登録する
+          </button>
+        </div>
       </div>
     );
   }
 
   return (
     <div className="space-y-5">
+      {appointmentCard}
       {medicines.length > 1 && (
         <button
           onClick={() => setSortMode((v) => !v)}

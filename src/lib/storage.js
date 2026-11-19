@@ -4,6 +4,7 @@
 import { DEFAULT_LOCATION, DEFAULT_MEDS, LOCATIONS, normalizeMedicine } from "./medicine.js";
 import { dayKey } from "./date.js";
 import { sortLogs } from "./records.js";
+import { isValidAppointment } from "./appointment.js";
 
 export const MEDS_KEY = "med_app_medicines_v2";
 export const LOGS_KEY = "med_app_logs_v2";
@@ -52,24 +53,45 @@ export const TODAY_VIEW_KEY = "med_app_today_view_v1";
 export const loadTodayView = () => (loadJSON(TODAY_VIEW_KEY, "list") === "calendar" ? "calendar" : "list");
 export const saveTodayView = (view) => saveJSON(TODAY_VIEW_KEY, view);
 
+// 次回の通院日です（登録していなければ null）
+export const APPOINTMENT_KEY = "med_app_appointment_v1";
+export const loadAppointment = () => {
+  const saved = loadJSON(APPOINTMENT_KEY, null);
+  return isValidAppointment(saved) ? saved : null;
+};
+export const saveAppointment = (appt) => saveJSON(APPOINTMENT_KEY, appt);
+
 /* バックアップの形式は version 3 です。version 2 との違いは、お薬に場所ごとの在庫数（stocks）が
-   加わったことだけです。合計の在庫数（stock）も今までどおり入れているので、
-   version 2 のバックアップも読み込めます（そのときは全部を自宅の在庫として扱います）。 */
-export function backupFile(data, now = new Date()) {
+   加わったことです。合計の在庫数（stock）も今までどおり入れているので、
+   version 2 のバックアップも読み込めます（そのときは全部を自宅の在庫として扱います）。
+   次回の通院日（appointment）を登録していれば、それも一緒に書き出します。 */
+export function backupFile(data, now = new Date(), appointment = null) {
   const text = JSON.stringify(
-    { app: "okusuri", version: 3, exportedAt: new Date(now).toISOString(), medicines: data.medicines, logs: data.logs },
+    {
+      app: "okusuri",
+      version: 3,
+      exportedAt: new Date(now).toISOString(),
+      medicines: data.medicines,
+      logs: data.logs,
+      ...(appointment ? { appointment } : {}),
+    },
     null,
     2,
   );
   return { text, fileName: `okusuri-backup-${dayKey(now)}.json` };
 }
 
-// バックアップファイルの中身を読み取ります。形式が違うときは null を返します。
+/* バックアップファイルの中身を読み取ります。形式が違うときは null を返します。
+   通院日が入っていれば appointment として返します（入っていなければ undefined）。 */
 export function parseBackup(text) {
   try {
     const parsed = JSON.parse(text);
     if (!parsed || !Array.isArray(parsed.medicines) || !Array.isArray(parsed.logs)) return null;
-    return { medicines: parsed.medicines.map(normalizeMedicine), logs: sortLogs(parsed.logs) };
+    return {
+      medicines: parsed.medicines.map(normalizeMedicine),
+      logs: sortLogs(parsed.logs),
+      appointment: isValidAppointment(parsed.appointment) ? parsed.appointment : undefined,
+    };
   } catch (e) {
     return null;
   }

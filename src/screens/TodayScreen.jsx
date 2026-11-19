@@ -1,3 +1,4 @@
+import AppointmentCard from "../components/AppointmentCard.jsx";
 import CalendarView from "../components/CalendarView.jsx";
 import LocationPicker from "../components/LocationPicker.jsx";
 import MedThumb from "../components/MedThumb.jsx";
@@ -14,7 +15,8 @@ const VIEWS = [
    「飲んだ」を押すと、上で選んでいる「今いる場所」の在庫が減ります。
    飲み終えた項目の「済み」を押すと、その記録を取り消せます（間違えて押したとき用）。
    「リスト｜カレンダー」で、今日の一覧と月カレンダーを切り替えられます。
-   カレンダーで日付を押すと onSelectDay が呼ばれ、その日の分をまとめて記録する画面が開きます。 */
+   カレンダーで日付を押すと onSelectDay が呼ばれ、その日の分をまとめて記録する画面が開きます。
+   いちばん上には、次回の通院日までの日数を表示します（押すと onEditAppointment で登録・編集）。 */
 export default function TodayScreen({
   tasks,
   lowStockMeds,
@@ -29,6 +31,9 @@ export default function TodayScreen({
   logs,
   today,
   onSelectDay,
+  appointment,
+  shortMeds,
+  onEditAppointment,
 }) {
   const done = tasks.filter((t) => t.done).length;
   const total = tasks.length;
@@ -37,6 +42,8 @@ export default function TodayScreen({
 
   return (
     <div className="space-y-5">
+      <AppointmentCard appointment={appointment} shortMeds={shortMeds} onEdit={onEditAppointment} />
+
       <div className={CARD + " p-5"}>
         <p className="text-xs font-bold text-gray-400 tracking-wider mb-3">今いる場所</p>
         <LocationPicker value={location} onChange={onLocationChange} label="今いる場所" />

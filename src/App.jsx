@@ -3,6 +3,7 @@
    データを書き換える処理そのものは lib/records.js にあります。 */
 import { useEffect, useMemo, useRef, useState } from "react";
 import BottomNav, { TABS } from "./components/BottomNav.jsx";
+import AppointmentSheet from "./components/AppointmentSheet.jsx";
 import ConfirmDialog from "./components/ConfirmDialog.jsx";
 import DaySheet from "./components/DaySheet.jsx";
 import LogForm from "./components/LogForm.jsx";
@@ -14,16 +15,19 @@ import SettingsSheet from "./components/SettingsSheet.jsx";
 import Toast from "./components/Toast.jsx";
 import { useToast, useToday, useTyping } from "./hooks.js";
 import { IcGear, IcTrash } from "./icons.jsx";
+import { medsShortBefore } from "./lib/appointment.js";
 import { formatLongDate, sameDay } from "./lib/date.js";
 import { isLowAt, isLowStock, locationLabel, otherLocation } from "./lib/medicine.js";
 import * as records from "./lib/records.js";
 import { SLOT_HOURS, SLOT_LABELS, computeDaySlots, computeStats, computeTodayTasks } from "./lib/schedule.js";
 import {
   backupFile,
+  loadAppointment,
   loadData,
   loadLocation,
   loadTodayView,
   parseBackup,
+  saveAppointment,
   saveLocation,
   saveLogs,
   saveMedicines,
@@ -66,6 +70,13 @@ export default function App() {
   useEffect(() => {
     saveTodayView(todayView);
   }, [todayView]);
+  // 次回の通院日です（登録していなければ null）
+  const [appointment, setAppointment] = useState(loadAppointment);
+  useEffect(() => {
+    saveAppointment(appointment);
+  }, [appointment]);
+  const [editingAppointment, setEditingAppointment] = useState(false);
+
   // カレンダーで選んだ日です（その日の分をまとめて記録する画面を開いている間だけ入ります）
   const [selectedDay, setSelectedDay] = useState(null);
 
@@ -264,12 +275,17 @@ export default function App() {
   );
   const stats = useMemo(() => computeStats(medicines, logs, statsRange, new Date()), [medicines, logs, statsRange, today]);
   const lowStockMeds = medicines.filter(isLowStock);
+  // 通院日の前日までに在庫が足りなくなりそうなお薬です
+  const shortMeds = useMemo(
+    () => medsShortBefore(medicines, logs, appointment, new Date()),
+    [medicines, logs, appointment, today],
+  );
   // 今日まだ飲んでいないお薬のうち、今いる場所の在庫が少ないものです
   const lowHereMeds = medicines.filter((m) => isLowAt(m, location) && todayTasks.some((t) => t.med.id === m.id && !t.done));
 
   /* ---------- バックアップ ---------- */
   const exportBackup = async () => {
-    const { text, fileName } = backupFile(data);
+    const { text, fileName } = backupFile(data, new Date(), appointment);
     // iPhoneではダウンロードより共有シートのほうが確実に保存できます
     try {
       const file = new File([text], fileName, { type: "application/json" });
@@ -302,7 +318,8 @@ export default function App() {
       message: `今のデータは上書きされます。お薬${restored.medicines.length}件、履歴${restored.logs.length}件を復元します。`,
       okLabel: "読み込む",
       onOk: () => {
-        setData(restored);
+        setData({ medicines: restored.medicines, logs: restored.logs });
+        if (restored.appointment) setAppointment(restored.appointment);
         setShowSettings(false);
         notify("バックアップから復元しました。");
       },
@@ -312,10 +329,11 @@ export default function App() {
   const resetAll = () =>
     setConfirmState({
       title: "すべてのデータを消しますか？",
-      message: "登録したお薬と服用履歴がすべて消えます。この操作は元に戻せません。",
+      message: "登録したお薬と服用履歴、次回の通院日がすべて消えます。この操作は元に戻せません。",
       okLabel: "すべて消す",
       onOk: () => {
         setData({ medicines: [], logs: [] });
+        setAppointment(null);
         setShowSettings(false);
         notify("データをすべて削除しました。");
       },
@@ -365,6 +383,9 @@ export default function App() {
             logs={logs}
             today={today}
             onSelectDay={setSelectedDay}
+            appointment={appointment}
+            shortMeds={shortMeds}
+            onEditAppointment={() => setEditingAppointment(true)}
           />
         )}
         {activeTab === "meds" && (
@@ -457,6 +478,24 @@ export default function App() {
 
       {refillMed && (
         <RefillSheet med={refillMed} defaultLocation={location} onApply={applyRefill} onClose={() => setRefillMed(null)} />
+      )}
+
+      {editingAppointment && (
+        <AppointmentSheet
+          initial={appointment}
+          onSave={(appt) => {
+            setAppointment(appt);
+            setEditingAppointment(false);
+            notify("次回の通院日を保存しました。");
+          }}
+          onDelete={() => {
+            setAppointment(null);
+            setEditingAppointment(false);
+            notify("通院日の登録を消しました。");
+          }}
+          onClose={() => setEditingAppointment(false)}
+          notify={notify}
+        />
       )}
 
       {selectedDay && (

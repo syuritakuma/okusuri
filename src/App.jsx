@@ -24,10 +24,12 @@ import {
   backupFile,
   loadAppointment,
   loadData,
+  loadLastPlace,
   loadLocation,
   loadTodayView,
   parseBackup,
   saveAppointment,
+  saveLastPlace,
   saveLocation,
   saveLogs,
   saveMedicines,
@@ -76,6 +78,11 @@ export default function App() {
     saveAppointment(appointment);
   }, [appointment]);
   const [editingAppointment, setEditingAppointment] = useState(false);
+  // 前回登録した病院の名前です（次の登録のときに最初から入れておきます）
+  const [lastPlace, setLastPlace] = useState(loadLastPlace);
+  useEffect(() => {
+    saveLastPlace(lastPlace);
+  }, [lastPlace]);
 
   // カレンダーで選んだ日です（その日の分をまとめて記録する画面を開いている間だけ入ります）
   const [selectedDay, setSelectedDay] = useState(null);
@@ -334,6 +341,7 @@ export default function App() {
       onOk: () => {
         setData({ medicines: [], logs: [] });
         setAppointment(null);
+        setLastPlace("");
         setShowSettings(false);
         notify("データをすべて削除しました。");
       },
@@ -483,8 +491,10 @@ export default function App() {
       {editingAppointment && (
         <AppointmentSheet
           initial={appointment}
+          lastPlace={lastPlace}
           onSave={(appt) => {
             setAppointment(appt);
+            if (appt.place) setLastPlace(appt.place);
             setEditingAppointment(false);
             notify("次回の通院日を保存しました。");
           }}

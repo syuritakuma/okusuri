@@ -6,7 +6,7 @@ import { daysLeftAt, estimateDaysLeft, isLowAt, isLowStock, normalizeMedicine, s
 import * as records from "../src/lib/records.js";
 import { computeDaySlots, computeStats, computeTodayTasks, slotStatus } from "../src/lib/schedule.js";
 import { backupFile, parseBackup } from "../src/lib/storage.js";
-import { daysUntil, formatAppointment, medsShortBefore } from "../src/lib/appointment.js";
+import { daysUntil, formatAppointment, medsShortBefore, parseAppointmentText } from "../src/lib/appointment.js";
 
 // 2026年10月21日（水）の昼12時を「今」として扱います
 const NOW = new Date(2026, 9, 21, 12, 0);
@@ -324,4 +324,33 @@ test("通院日もバックアップに入り、読み戻せる", () => {
   assert.deepEqual(parseBackup(text).appointment, appt);
   const { text: none } = backupFile({ medicines: [daily], logs: [] }, NOW);
   assert.equal(parseBackup(none).appointment, undefined);
+});
+
+/* ---------- 文章から通院日を読み取る ---------- */
+const NOV19 = new Date(2026, 10, 19, 12, 0);
+
+test("毎朝の報告の文章から、日付・時刻・病院名を読み取る", () => {
+  const text =
+    "- 2026年12月18日（金）の10時30分から、メディカルプラザ大道中央病院で糖尿病科の診察と循環器科の検査（エコー・ABI）の予約があります。\n- 2026年12月8日（火）は、セブンイレブンのキャンペーン応募締切です。";
+  assert.deepEqual(parseAppointmentText(text, NOV19), { date: "2026-12-18", time: "10:30", place: "メディカルプラザ大道中央病院" });
+});
+
+test("予約票の文字から読み取るときは、印刷した日時ではなく診察日を選ぶ", () => {
+  const text =
+    "糖尿病科\n\n2026/11/18 12:11\n\n予約票\n\n担当:砂川 優\n\n診察時間 : 2026年12月18日 (金)\n\n10時30分\n\n予約内容\n\n検体\n\nエコー\n\n11:00 ~ 11:30\n\nメディカルプラザ大道中央病院";
+  assert.deepEqual(parseAppointmentText(text, NOV19), { date: "2026-12-18", time: "10:30", place: "メディカルプラザ大道中央病院" });
+});
+
+test("いろいろな書き方の日付と時刻を読み取る", () => {
+  assert.deepEqual(parseAppointmentText("12/18 14:00 浦添総合病院", NOV19), { date: "2026-12-18", time: "14:00", place: "浦添総合病院" });
+  assert.deepEqual(parseAppointmentText("1月10日 午後2時半 診察", NOV19), { date: "2027-01-10", time: "14:30", place: "" });
+  assert.deepEqual(parseAppointmentText("令和8年12月18日 10時 受診", NOV19), { date: "2026-12-18", time: "10:00", place: "" });
+  assert.deepEqual(parseAppointmentText("１２月１８日 １０：３０ 予約", NOV19), { date: "2026-12-18", time: "10:30", place: "" });
+  assert.equal(parseAppointmentText("2026年12月18日", NOV19).time, "");
+});
+
+test("日付がない文章や、過去の日付しかない文章は読み取らない", () => {
+  assert.equal(parseAppointmentText("お薬を受け取りました", NOV19), null);
+  assert.equal(parseAppointmentText("2026年11月18日に診察しました", NOV19), null);
+  assert.equal(parseAppointmentText("", NOV19), null);
 });

@@ -61,6 +61,14 @@ export const loadAppointment = () => {
 };
 export const saveAppointment = (appt) => saveJSON(APPOINTMENT_KEY, appt);
 
+// 前回登録した病院の名前です。次に通院日を登録するとき、最初から入れておくために使います。
+export const LAST_PLACE_KEY = "med_app_last_place_v1";
+export const loadLastPlace = () => {
+  const saved = loadJSON(LAST_PLACE_KEY, "");
+  return typeof saved === "string" ? saved : "";
+};
+export const saveLastPlace = (place) => saveJSON(LAST_PLACE_KEY, place);
+
 /* バックアップの形式は version 3 です。version 2 との違いは、お薬に場所ごとの在庫数（stocks）が
    加わったことです。合計の在庫数（stock）も今までどおり入れているので、
    version 2 のバックアップも読み込めます（そのときは全部を自宅の在庫として扱います）。

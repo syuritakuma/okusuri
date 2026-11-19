@@ -2,7 +2,7 @@ import { IcAlert, IcEdit, IcHospital } from "../icons.jsx";
 import { daysUntil, formatAppointment } from "../lib/appointment.js";
 import { CARD } from "../ui.js";
 
-/* 「今日」タブのいちばん上に出す、次回の通院日までの日数です。
+/* 「お薬」タブ（お薬と在庫）のいちばん上に出す、次回の通院日までの日数です。
    通院日を登録していないときは、登録をうながす小さな案内を出します。
    shortMeds には、通院日の前日までに在庫が足りなくなりそうなお薬（medsShortBefore の結果）を渡します。 */
 export default function AppointmentCard({ appointment, shortMeds, onEdit }) {

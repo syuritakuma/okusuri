@@ -383,9 +383,6 @@ export default function App() {
             logs={logs}
             today={today}
             onSelectDay={setSelectedDay}
-            appointment={appointment}
-            shortMeds={shortMeds}
-            onEditAppointment={() => setEditingAppointment(true)}
           />
         )}
         {activeTab === "meds" && (
@@ -397,6 +394,9 @@ export default function App() {
             onDelete={deleteMedicine}
             onMove={moveMedicine}
             onGoAdd={() => goTab("add")}
+            appointment={appointment}
+            shortMeds={shortMeds}
+            onEditAppointment={() => setEditingAppointment(true)}
           />
         )}
         {activeTab === "stats" && (

@@ -6,6 +6,7 @@ import { daysLeftAt, estimateDaysLeft, isLowAt, isLowStock, normalizeMedicine, s
 import * as records from "../src/lib/records.js";
 import { computeDaySlots, computeStats, computeTodayTasks, slotStatus } from "../src/lib/schedule.js";
 import { backupFile, parseBackup } from "../src/lib/storage.js";
+import { daysUntil, formatAppointment, medsShortBefore } from "../src/lib/appointment.js";
 
 // 2026年10月21日（水）の昼12時を「今」として扱います
 const NOW = new Date(2026, 9, 21, 12, 0);
@@ -291,4 +292,36 @@ test("まとめて取り消すと、それぞれ飲んだ場所の在庫に戻�
   const undone = records.deleteLogs(r.data, [...r.logs.map((l) => l.id), "存在しない記録"]).data;
   assert.deepEqual(undone.medicines[0].stocks, { home: 6, parents: 2 });
   assert.equal(undone.logs.length, 0);
+});
+
+/* ---------- 次回の通院日 ---------- */
+const appt = { date: "2026-11-30", time: "10:30", place: "テスト病院", memo: "" };
+
+test("通院日までの日数と表示", () => {
+  assert.equal(daysUntil("2026-11-30", NOW), 40); // テストの「今日」は2026年10月21日
+  assert.equal(daysUntil("2026-10-21", NOW), 0);
+  assert.equal(daysUntil("2026-10-22", NOW), 1);
+  assert.equal(daysUntil("2026-10-20", NOW), -1);
+  assert.equal(formatAppointment(appt), "11月30日（月） 10:30");
+  assert.equal(formatAppointment({ date: "2026-11-30" }), "11月30日（月）");
+});
+
+test("通院日の前日までに足りなくなるお薬を、足りない数と一緒に出す", () => {
+  const soon = { ...appt, date: "2026-10-26" }; // あと5日（今日〜25日の5日分が必要）
+  // 1日2錠で5日分＝10錠必要。今日の朝の分を飲んでいれば9錠でよい
+  assert.deepEqual(medsShortBefore([{ ...daily, stock: 8 }], [], soon, NOW).map((x) => x.shortBy), [2]);
+  assert.deepEqual(medsShortBefore([{ ...daily, stock: 9 }], [log(1, "morning", at(0, 8))], soon, NOW), []);
+  // 週1回（月曜）：11月3日が通院日なら、その前日までの月曜は10月26日と11月2日の2回
+  const twoWeeks = { ...appt, date: "2026-11-03" };
+  assert.deepEqual(medsShortBefore([{ ...weekly, stock: 1 }], [], twoWeeks, NOW).map((x) => x.shortBy), [1]);
+  assert.deepEqual(medsShortBefore([{ ...weekly, stock: 2 }], [], twoWeeks, NOW), []);
+  // 過ぎた通院日では何も出さない
+  assert.deepEqual(medsShortBefore([{ ...daily, stock: 0 }], [], { date: "2026-10-01" }, NOW), []);
+});
+
+test("通院日もバックアップに入り、読み戻せる", () => {
+  const { text } = backupFile({ medicines: [daily], logs: [] }, NOW, appt);
+  assert.deepEqual(parseBackup(text).appointment, appt);
+  const { text: none } = backupFile({ medicines: [daily], logs: [] }, NOW);
+  assert.equal(parseBackup(none).appointment, undefined);
 });

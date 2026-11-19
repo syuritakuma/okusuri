@@ -149,6 +149,12 @@ export const IcDown = (p) => (
     <path d="m6 9 6 6 6-6" />
   </Svg>
 );
+export const IcHospital = (p) => (
+  <Svg {...p}>
+    <path d="M4 21V5a2 2 0 0 1 2-2h12a2 2 0 0 1 2 2v16" />
+    <path d="M2 21h20M12 7v6M9 10h6M10 21v-4h4v4" />
+  </Svg>
+);
 export const IcLeft = (p) => (
   <Svg {...p}>
     <path d="m15 18-6-6 6-6" />
